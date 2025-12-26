@@ -25,6 +25,15 @@ pub enum Error {
     /// An I/O error occurred.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    /// MCP server uses unsupported features for target harness.
+    #[error("unsupported MCP config for {harness}: {reason}")]
+    UnsupportedMcpConfig {
+        /// The harness that doesn't support the config.
+        harness: String,
+        /// Explanation of what's unsupported.
+        reason: String,
+    },
 }
 
 /// A specialized Result type for harness operations.
