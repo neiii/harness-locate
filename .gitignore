@@ -2,3 +2,10 @@
 /docs
 .opencode
 AGENTS.md
+AGENTIC_WORKFLOW.md
+
+# Beads artifacts are local-only working documents
+.beads/artifacts/
+
+# bv (beads viewer) local config and caches
+.bv/

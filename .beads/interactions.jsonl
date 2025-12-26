@@ -1,0 +1,6 @@
+{"timestamp":"2025-12-26T07:15:00Z","action":"create","bead":"bd-001","type":"epic","title":"Cross-platform harness path discovery for CLI tools","priority":1,"status":"open"}
+{"timestamp":"2025-12-26T07:15:01Z","action":"create","bead":"bd-002","type":"feature","title":"Define core types and error handling","parent":"bd-001","priority":1,"status":"open"}
+{"timestamp":"2025-12-26T07:15:02Z","action":"create","bead":"bd-003","type":"feature","title":"Implement platform-specific path resolution","parent":"bd-001","depends_on":["bd-002"],"priority":1,"status":"open"}
+{"timestamp":"2025-12-26T07:15:03Z","action":"create","bead":"bd-004","type":"feature","title":"Implement Claude Code harness","parent":"bd-001","depends_on":["bd-002","bd-003"],"priority":2,"status":"open"}
+{"timestamp":"2025-12-26T07:15:04Z","action":"create","bead":"bd-005","type":"feature","title":"Implement OpenCode harness","parent":"bd-001","depends_on":["bd-002","bd-003"],"priority":2,"status":"open"}
+{"timestamp":"2025-12-26T07:15:05Z","action":"create","bead":"bd-006","type":"feature","title":"Implement Goose harness","parent":"bd-001","depends_on":["bd-002","bd-003"],"priority":2,"status":"open"}
