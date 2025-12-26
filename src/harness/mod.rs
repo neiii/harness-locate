@@ -3,7 +3,9 @@
 use std::path::PathBuf;
 
 use crate::error::{Error, Result};
-use crate::types::{HarnessKind, Scope};
+use crate::types::{
+    ConfigResource, DirectoryResource, DirectoryStructure, FileFormat, HarnessKind, Scope,
+};
 
 pub mod claude_code;
 pub mod goose;
@@ -89,58 +91,181 @@ impl Harness {
         Ok(result)
     }
 
-    /// Returns the path to the skills directory for the given scope.
-    #[must_use]
-    pub fn skills_path(&self, scope: Scope) -> Option<PathBuf> {
+    /// Returns the skills directory resource for the given scope.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration directory cannot be determined.
+    ///
+    /// # Returns
+    ///
+    /// - `Ok(None)` if this harness does not support skills (Claude Code, Goose)
+    /// - `Ok(Some(resource))` if skills are supported (OpenCode)
+    pub fn skills(&self, scope: &Scope) -> Result<Option<DirectoryResource>> {
         match self.kind {
-            HarnessKind::ClaudeCode => claude_code::skills_dir(&scope),
-            HarnessKind::OpenCode => opencode::skills_dir(&scope),
-            HarnessKind::Goose => goose::skills_dir(&scope),
+            HarnessKind::OpenCode => {
+                let path = opencode::skills_dir(scope)
+                    .ok_or_else(|| Error::NotFound("skills directory".into()))?;
+                Ok(Some(DirectoryResource {
+                    exists: path.exists(),
+                    path,
+                    structure: DirectoryStructure::Nested {
+                        subdir_pattern: "*".into(),
+                        file_name: "SKILL.md".into(),
+                    },
+                    file_format: FileFormat::Markdown,
+                }))
+            }
+            HarnessKind::ClaudeCode | HarnessKind::Goose => Ok(None),
         }
     }
 
-    /// Returns the path to the commands directory for the given scope.
-    #[must_use]
-    pub fn commands_path(&self, scope: Scope) -> Option<PathBuf> {
+    /// Returns the commands directory resource for the given scope.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration directory cannot be determined.
+    pub fn commands(&self, scope: &Scope) -> Result<Option<DirectoryResource>> {
+        let path = match self.kind {
+            HarnessKind::ClaudeCode => claude_code::commands_dir(scope)?,
+            HarnessKind::OpenCode => opencode::commands_dir(scope)?,
+            HarnessKind::Goose => return Ok(None), // Goose doesn't have commands
+        };
+        Ok(Some(DirectoryResource {
+            exists: path.exists(),
+            path,
+            structure: DirectoryStructure::Flat {
+                file_pattern: "*.md".into(),
+            },
+            file_format: FileFormat::MarkdownWithFrontmatter,
+        }))
+    }
+
+    /// Returns the plugins directory resource for the given scope.
+    ///
+    /// Only OpenCode supports plugins. Claude Code and Goose return `Ok(None)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration directory cannot be determined.
+    pub fn plugins(&self, scope: &Scope) -> Result<Option<DirectoryResource>> {
         match self.kind {
-            HarnessKind::ClaudeCode => claude_code::commands_dir(&scope).ok(),
-            HarnessKind::OpenCode => opencode::commands_dir(&scope).ok(),
-            HarnessKind::Goose => goose::commands_dir(&scope).ok(),
+            HarnessKind::OpenCode => {
+                let path = opencode::config_dir(scope)?.join("plugin");
+                Ok(Some(DirectoryResource {
+                    exists: path.exists(),
+                    path,
+                    structure: DirectoryStructure::Flat {
+                        file_pattern: "*.{js,ts}".into(),
+                    },
+                    file_format: FileFormat::Json,
+                }))
+            }
+            HarnessKind::ClaudeCode | HarnessKind::Goose => Ok(None),
         }
     }
 
-    /// Returns the path to the config directory for the given scope.
-    #[must_use]
-    pub fn config_path(&self, scope: Scope) -> Option<PathBuf> {
+    /// Returns the agents directory resource for the given scope.
+    ///
+    /// Only OpenCode supports custom agents. Claude Code and Goose return `Ok(None)`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration directory cannot be determined.
+    pub fn agents(&self, scope: &Scope) -> Result<Option<DirectoryResource>> {
         match self.kind {
-            HarnessKind::ClaudeCode => claude_code::config_dir(&scope).ok(),
-            HarnessKind::OpenCode => opencode::config_dir(&scope).ok(),
-            HarnessKind::Goose => goose::config_dir(&scope).ok(),
+            HarnessKind::OpenCode => {
+                let path = opencode::config_dir(scope)?.join("agent");
+                Ok(Some(DirectoryResource {
+                    exists: path.exists(),
+                    path,
+                    structure: DirectoryStructure::Flat {
+                        file_pattern: "*.{yaml,json}".into(),
+                    },
+                    file_format: FileFormat::Yaml,
+                }))
+            }
+            HarnessKind::ClaudeCode | HarnessKind::Goose => Ok(None),
         }
     }
 
-    /// Returns the path to the MCP configuration directory for the given scope.
-    #[must_use]
-    pub fn mcp_path(&self, scope: Scope) -> Option<PathBuf> {
+    /// Returns the base configuration directory path for the given scope.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration directory cannot be determined.
+    pub fn config(&self, scope: &Scope) -> Result<PathBuf> {
         match self.kind {
-            HarnessKind::ClaudeCode => claude_code::mcp_dir(&scope).ok(),
-            HarnessKind::OpenCode => opencode::mcp_dir(&scope).ok(),
-            HarnessKind::Goose => goose::mcp_dir(&scope).ok(),
+            HarnessKind::ClaudeCode => claude_code::config_dir(scope),
+            HarnessKind::OpenCode => opencode::config_dir(scope),
+            HarnessKind::Goose => goose::config_dir(scope),
         }
     }
 
-    /// Returns the path to the rules directory for the given scope.
+    /// Returns the MCP configuration resource for the given scope.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration directory cannot be determined.
+    pub fn mcp(&self, scope: &Scope) -> Result<Option<ConfigResource>> {
+        let (file, key_path, format) = match self.kind {
+            HarnessKind::ClaudeCode => {
+                let base = claude_code::config_dir(scope)?;
+                (
+                    base.join("claude_desktop_config.json"),
+                    "/mcpServers".into(),
+                    FileFormat::Json,
+                )
+            }
+            HarnessKind::OpenCode => {
+                let base = opencode::config_dir(scope)?;
+                (
+                    base.join("config.json"),
+                    "/mcpServers".into(),
+                    FileFormat::Json,
+                )
+            }
+            HarnessKind::Goose => {
+                let base = goose::config_dir(scope)?;
+                (
+                    base.join("config.yaml"),
+                    "/extensions".into(),
+                    FileFormat::Yaml,
+                )
+            }
+        };
+        Ok(Some(ConfigResource {
+            file_exists: file.exists(),
+            file,
+            key_path,
+            format,
+            schema_url: None,
+        }))
+    }
+
+    /// Returns the rules directory resource for the given scope.
     ///
     /// Rules files contain behavioral instructions for the AI assistant.
-    /// Note: For project scope, this typically returns the project root
-    /// (not a subdirectory), as rules files like `CLAUDE.md` or `.goosehints`
-    /// conventionally live at the project root.
-    #[must_use]
-    pub fn rules_path(&self, scope: Scope) -> Option<PathBuf> {
-        match self.kind {
-            HarnessKind::ClaudeCode => claude_code::rules_dir(&scope),
-            HarnessKind::OpenCode => opencode::rules_dir(&scope),
-            HarnessKind::Goose => goose::rules_dir(&scope),
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration directory cannot be determined.
+    pub fn rules(&self, scope: &Scope) -> Result<Option<DirectoryResource>> {
+        let path = match self.kind {
+            HarnessKind::ClaudeCode => claude_code::rules_dir(scope),
+            HarnessKind::OpenCode => opencode::rules_dir(scope),
+            HarnessKind::Goose => goose::rules_dir(scope),
+        };
+        match path {
+            Some(p) => Ok(Some(DirectoryResource {
+                exists: p.exists(),
+                path: p,
+                structure: DirectoryStructure::Flat {
+                    file_pattern: "*.md".into(),
+                },
+                file_format: FileFormat::Markdown,
+            })),
+            None => Ok(None),
         }
     }
 }
@@ -151,7 +276,6 @@ mod tests {
 
     #[test]
     fn locate_claude_code_when_installed() {
-        // This test only passes if Claude Code is installed
         if !claude_code::is_installed() {
             return;
         }
@@ -162,51 +286,50 @@ mod tests {
     }
 
     #[test]
-    fn config_path_global_for_claude_code() {
+    fn config_global_for_claude_code() {
         if !claude_code::is_installed() {
             return;
         }
 
         let harness = Harness::locate(HarnessKind::ClaudeCode).unwrap();
-        let path = harness.config_path(Scope::Global);
-        assert!(path.is_some());
-        let path = path.unwrap();
+        let path = harness.config(&Scope::Global).unwrap();
         assert!(path.is_absolute());
         assert!(path.ends_with(".claude"));
     }
 
     #[test]
-    fn config_path_project_for_claude_code() {
+    fn config_project_for_claude_code() {
         if !claude_code::is_installed() {
             return;
         }
 
         let harness = Harness::locate(HarnessKind::ClaudeCode).unwrap();
-        let path = harness.config_path(Scope::Project(PathBuf::from("/some/project")));
-        assert!(path.is_some());
-        assert_eq!(path.unwrap(), PathBuf::from("/some/project/.claude"));
+        let path = harness
+            .config(&Scope::Project(PathBuf::from("/some/project")))
+            .unwrap();
+        assert_eq!(path, PathBuf::from("/some/project/.claude"));
     }
 
     #[test]
-    fn commands_path_for_claude_code() {
+    fn commands_for_claude_code() {
         if !claude_code::is_installed() {
             return;
         }
 
         let harness = Harness::locate(HarnessKind::ClaudeCode).unwrap();
-        let path = harness.commands_path(Scope::Global);
-        assert!(path.is_some());
-        assert!(path.unwrap().ends_with("commands"));
+        let resource = harness.commands(&Scope::Global).unwrap();
+        assert!(resource.is_some());
+        let dir = resource.unwrap();
+        assert!(dir.path.ends_with("commands"));
+        assert!(matches!(dir.structure, DirectoryStructure::Flat { .. }));
     }
 
     #[test]
-    fn skills_path_none_for_claude_code() {
-        if !claude_code::is_installed() {
-            return;
-        }
-
-        let harness = Harness::locate(HarnessKind::ClaudeCode).unwrap();
-        assert!(harness.skills_path(Scope::Global).is_none());
+    fn skills_none_for_claude_code() {
+        let harness = Harness::new(HarnessKind::ClaudeCode);
+        let result = harness.skills(&Scope::Global);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
     }
 
     #[test]
@@ -221,41 +344,41 @@ mod tests {
     }
 
     #[test]
-    fn config_path_global_for_opencode() {
+    fn config_global_for_opencode() {
         if !opencode::is_installed() {
             return;
         }
 
         let harness = Harness::locate(HarnessKind::OpenCode).unwrap();
-        let path = harness.config_path(Scope::Global);
-        assert!(path.is_some());
-        let path = path.unwrap();
+        let path = harness.config(&Scope::Global).unwrap();
         assert!(path.is_absolute());
         assert!(path.ends_with("opencode"));
     }
 
     #[test]
-    fn config_path_project_for_opencode() {
+    fn config_project_for_opencode() {
         if !opencode::is_installed() {
             return;
         }
 
         let harness = Harness::locate(HarnessKind::OpenCode).unwrap();
-        let path = harness.config_path(Scope::Project(PathBuf::from("/some/project")));
-        assert!(path.is_some());
-        assert_eq!(path.unwrap(), PathBuf::from("/some/project/.opencode"));
+        let path = harness
+            .config(&Scope::Project(PathBuf::from("/some/project")))
+            .unwrap();
+        assert_eq!(path, PathBuf::from("/some/project/.opencode"));
     }
 
     #[test]
-    fn skills_path_for_opencode() {
+    fn skills_for_opencode() {
         if !opencode::is_installed() {
             return;
         }
 
         let harness = Harness::locate(HarnessKind::OpenCode).unwrap();
-        let path = harness.skills_path(Scope::Global);
-        assert!(path.is_some());
-        assert!(path.unwrap().ends_with("skill"));
+        let resource = harness.skills(&Scope::Global).unwrap();
+        assert!(resource.is_some());
+        let dir = resource.unwrap();
+        assert!(dir.path.ends_with("skill"));
     }
 
     #[test]
@@ -270,85 +393,114 @@ mod tests {
     }
 
     #[test]
-    fn config_path_global_for_goose() {
+    fn config_global_for_goose() {
         if !goose::is_installed() {
             return;
         }
 
         let harness = Harness::locate(HarnessKind::Goose).unwrap();
-        let path = harness.config_path(Scope::Global);
-        assert!(path.is_some());
-        let path = path.unwrap();
+        let path = harness.config(&Scope::Global).unwrap();
         assert!(path.is_absolute());
         assert!(path.ends_with("goose"));
     }
 
     #[test]
-    fn config_path_project_for_goose() {
+    fn config_project_for_goose() {
         if !goose::is_installed() {
             return;
         }
 
         let harness = Harness::locate(HarnessKind::Goose).unwrap();
-        let path = harness.config_path(Scope::Project(PathBuf::from("/some/project")));
-        assert!(path.is_some());
-        assert_eq!(path.unwrap(), PathBuf::from("/some/project/.goose"));
+        let path = harness
+            .config(&Scope::Project(PathBuf::from("/some/project")))
+            .unwrap();
+        assert_eq!(path, PathBuf::from("/some/project/.goose"));
     }
 
     #[test]
-    fn skills_path_none_for_goose() {
+    fn skills_none_for_goose() {
+        let harness = Harness::new(HarnessKind::Goose);
+        let result = harness.skills(&Scope::Global);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn rules_none_for_claude_code_global() {
+        let harness = Harness::new(HarnessKind::ClaudeCode);
+        let result = harness.rules(&Scope::Global);
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn rules_project_root_for_claude_code() {
+        let harness = Harness::new(HarnessKind::ClaudeCode);
+        let resource = harness
+            .rules(&Scope::Project(PathBuf::from("/some/project")))
+            .unwrap();
+        assert!(resource.is_some());
+        assert_eq!(resource.unwrap().path, PathBuf::from("/some/project"));
+    }
+
+    #[test]
+    fn rules_global_for_goose() {
         if !goose::is_installed() {
             return;
         }
 
         let harness = Harness::locate(HarnessKind::Goose).unwrap();
-        assert!(harness.skills_path(Scope::Global).is_none());
+        let resource = harness.rules(&Scope::Global).unwrap();
+        assert!(resource.is_some());
+        assert!(resource.unwrap().path.ends_with("goose"));
     }
 
     #[test]
-    fn rules_path_none_for_claude_code_global() {
+    fn rules_project_root_for_goose() {
+        let harness = Harness::new(HarnessKind::Goose);
+        let resource = harness
+            .rules(&Scope::Project(PathBuf::from("/some/project")))
+            .unwrap();
+        assert!(resource.is_some());
+        assert_eq!(resource.unwrap().path, PathBuf::from("/some/project"));
+    }
+
+    #[test]
+    fn plugins_none_for_non_opencode() {
+        let harness = Harness::new(HarnessKind::ClaudeCode);
+        assert!(harness.plugins(&Scope::Global).unwrap().is_none());
+
+        let harness = Harness::new(HarnessKind::Goose);
+        assert!(harness.plugins(&Scope::Global).unwrap().is_none());
+    }
+
+    #[test]
+    fn agents_none_for_non_opencode() {
+        let harness = Harness::new(HarnessKind::ClaudeCode);
+        assert!(harness.agents(&Scope::Global).unwrap().is_none());
+
+        let harness = Harness::new(HarnessKind::Goose);
+        assert!(harness.agents(&Scope::Global).unwrap().is_none());
+    }
+
+    #[test]
+    fn mcp_returns_config_resource() {
         if !claude_code::is_installed() {
             return;
         }
 
-        let harness = Harness::locate(HarnessKind::ClaudeCode).unwrap();
-        assert!(harness.rules_path(Scope::Global).is_none());
+        let harness = Harness::new(HarnessKind::ClaudeCode);
+        let resource = harness.mcp(&Scope::Global).unwrap();
+        assert!(resource.is_some());
+        let config = resource.unwrap();
+        assert_eq!(config.key_path, "/mcpServers");
     }
 
     #[test]
-    fn rules_path_project_root_for_claude_code() {
-        if !claude_code::is_installed() {
-            return;
-        }
-
-        let harness = Harness::locate(HarnessKind::ClaudeCode).unwrap();
-        let path = harness.rules_path(Scope::Project(PathBuf::from("/some/project")));
-        assert!(path.is_some());
-        assert_eq!(path.unwrap(), PathBuf::from("/some/project"));
-    }
-
-    #[test]
-    fn rules_path_global_for_goose() {
-        if !goose::is_installed() {
-            return;
-        }
-
-        let harness = Harness::locate(HarnessKind::Goose).unwrap();
-        let path = harness.rules_path(Scope::Global);
-        assert!(path.is_some());
-        assert!(path.unwrap().ends_with("goose"));
-    }
-
-    #[test]
-    fn rules_path_project_root_for_goose() {
-        if !goose::is_installed() {
-            return;
-        }
-
-        let harness = Harness::locate(HarnessKind::Goose).unwrap();
-        let path = harness.rules_path(Scope::Project(PathBuf::from("/some/project")));
-        assert!(path.is_some());
-        assert_eq!(path.unwrap(), PathBuf::from("/some/project"));
+    fn commands_none_for_goose() {
+        let harness = Harness::new(HarnessKind::Goose);
+        let result = harness.commands(&Scope::Global).unwrap();
+        assert!(result.is_none());
     }
 
     #[test]
