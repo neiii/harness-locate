@@ -1,14 +1,12 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! Cross-platform harness path discovery for AI coding CLI tools.
+//!
+//! This library provides a unified way to discover configuration paths
+//! for various AI coding assistants (Claude Code, OpenCode, Goose).
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod error;
+pub mod harness;
+pub mod types;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use error::{Error, Result};
+pub use harness::Harness;
+pub use types::{HarnessKind, PathType, Scope};
