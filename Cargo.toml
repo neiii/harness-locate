@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 home = "0.5"
+serde = { version = "1", features = ["derive"] }
 thiserror = "2"

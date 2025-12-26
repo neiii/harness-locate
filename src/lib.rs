@@ -10,4 +10,6 @@ pub mod types;
 
 pub use error::{Error, Result};
 pub use harness::Harness;
-pub use types::{HarnessKind, PathType, Scope};
+pub use types::{
+    ConfigResource, DirectoryResource, DirectoryStructure, FileFormat, HarnessKind, PathType, Scope,
+};
