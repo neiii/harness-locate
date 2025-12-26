@@ -1,5 +1,6 @@
 //! Core type definitions for harness path resolution.
 
+use std::fmt;
 use std::path::PathBuf;
 
 /// Supported AI coding harnesses.
@@ -20,6 +21,16 @@ pub enum HarnessKind {
     OpenCode,
     /// Goose (Block's AI coding assistant)
     Goose,
+}
+
+impl fmt::Display for HarnessKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::ClaudeCode => write!(f, "Claude Code"),
+            Self::OpenCode => write!(f, "OpenCode"),
+            Self::Goose => write!(f, "Goose"),
+        }
+    }
 }
 
 /// Scope for path resolution.
