@@ -51,8 +51,8 @@ Model Context Protocol server configuration.
 
 | Harness | Global | Project |
 |---------|--------|---------|
-| Claude Code | Same as config | Same as config |
-| OpenCode | `~/.config/opencode/plugin/` | `.opencode/plugin/` |
+| Claude Code | `~/.claude.json` | `.mcp.json` |
+| OpenCode | Same as config (`opencode.json`) | Same as config (`opencode.json`) |
 | Goose | Same as config | Same as config |
 
 ### Rules (`rules_dir`)
@@ -60,7 +60,7 @@ Behavioral instructions/rules files. **Note**: Project rules typically live at p
 
 | Harness | Global | Project | Files |
 |---------|--------|---------|-------|
-| Claude Code | None | Project root | `CLAUDE.md`, `CLAUDE.local.md` |
+| Claude Code | `~/.claude/` | Project root | `CLAUDE.md`, `CLAUDE.local.md` |
 | OpenCode | None | Project root | `AGENTS.md` |
 | Goose | `~/.config/goose/` | Project root | `.goosehints`, `AGENTS.md` |
 

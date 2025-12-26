@@ -226,20 +226,18 @@ impl Harness {
     pub fn mcp(&self, scope: &Scope) -> Result<Option<ConfigResource>> {
         let (file, key_path, format) = match self.kind {
             HarnessKind::ClaudeCode => {
-                let base = claude_code::config_dir(scope)?;
-                (
-                    base.join("claude_desktop_config.json"),
-                    "/mcpServers".into(),
-                    FileFormat::Json,
-                )
+                // Claude Code CLI uses different files than Claude Desktop:
+                // - Global: ~/.claude.json (in home dir, NOT in .claude/)
+                // - Project: .mcp.json (in project root, NOT in .claude/)
+                let file = match scope {
+                    Scope::Global => crate::platform::home_dir()?.join(".claude.json"),
+                    Scope::Project(root) => root.join(".mcp.json"),
+                };
+                (file, "/mcpServers".into(), FileFormat::Json)
             }
             HarnessKind::OpenCode => {
                 let base = opencode::config_dir(scope)?;
-                (
-                    base.join("config.json"),
-                    "/mcpServers".into(),
-                    FileFormat::Json,
-                )
+                (base.join("opencode.json"), "/mcp".into(), FileFormat::Json)
             }
             HarnessKind::Goose => {
                 let base = goose::config_dir(scope)?;
@@ -814,11 +812,17 @@ mod tests {
     }
 
     #[test]
-    fn rules_none_for_claude_code_global() {
+    fn rules_for_claude_code_global() {
+        if !claude_code::is_installed() {
+            return;
+        }
+
         let harness = Harness::new(HarnessKind::ClaudeCode);
         let result = harness.rules(&Scope::Global);
         assert!(result.is_ok());
-        assert!(result.unwrap().is_none());
+        let resource = result.unwrap();
+        assert!(resource.is_some());
+        assert!(resource.unwrap().path.ends_with(".claude"));
     }
 
     #[test]

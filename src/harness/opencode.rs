@@ -56,12 +56,10 @@ pub fn config_dir(scope: &Scope) -> Result<PathBuf> {
 
 /// Returns the MCP configuration directory for the given scope.
 ///
-/// OpenCode stores MCP configuration in a `plugin/` subdirectory.
+/// OpenCode stores MCP configuration in `opencode.json` under the `mcp` key,
+/// NOT in a separate directory. The `plugin/` directory is for JS/TS plugins only.
 pub fn mcp_dir(scope: &Scope) -> Result<PathBuf> {
-    match scope {
-        Scope::Global => Ok(global_config_dir()?.join("plugin")),
-        Scope::Project(root) => Ok(project_config_dir(root).join("plugin")),
-    }
+    config_dir(scope)
 }
 
 /// Returns the skills directory for the given scope.
@@ -462,7 +460,7 @@ mod tests {
         let result = mcp_dir(&Scope::Global);
         assert!(result.is_ok());
         let path = result.unwrap();
-        assert!(path.ends_with("plugin"));
+        assert!(path.ends_with("opencode"));
     }
 
     #[test]

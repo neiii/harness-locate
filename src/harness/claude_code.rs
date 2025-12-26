@@ -92,12 +92,12 @@ pub fn skills_dir(scope: &Scope) -> Option<PathBuf> {
 /// Returns the rules directory for the given scope.
 ///
 /// Claude Code stores rules files (`CLAUDE.md`, `CLAUDE.local.md`) at:
-/// - **Global**: None (no global rules)
+/// - **Global**: `~/.claude/` (supports global `CLAUDE.md`)
 /// - **Project**: Project root directory (not `.claude/`)
 #[must_use]
 pub fn rules_dir(scope: &Scope) -> Option<PathBuf> {
     match scope {
-        Scope::Global => None,
+        Scope::Global => global_config_dir().ok(),
         Scope::Project(root) => Some(root.clone()),
     }
 }
@@ -375,8 +375,15 @@ mod tests {
     }
 
     #[test]
-    fn rules_dir_global_returns_none() {
-        assert!(rules_dir(&Scope::Global).is_none());
+    fn rules_dir_global_returns_config_dir() {
+        if platform::home_dir().is_err() {
+            return;
+        }
+
+        let result = rules_dir(&Scope::Global);
+        assert!(result.is_some());
+        let path = result.unwrap();
+        assert!(path.ends_with(".claude"));
     }
 
     #[test]
