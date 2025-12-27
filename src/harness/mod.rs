@@ -1,5 +1,6 @@
 //! Harness discovery and path resolution.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 use serde_json::json;
@@ -870,6 +871,94 @@ impl Harness {
                 Ok(config)
             }
         }
+    }
+
+    /// Parses MCP server configurations from harness-native JSON format.
+    ///
+    /// Each harness expects a different root key in the config:
+    /// - Claude Code: `{"mcpServers": {...}}`
+    /// - OpenCode: `{"mcp": {...}}`
+    /// - Goose: `{"extensions": {...}}`
+    ///
+    /// Returns all servers including disabled ones. Callers can filter
+    /// by checking the `enabled` field on each server variant.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the config format is invalid for this harness.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use std::collections::HashMap;
+    /// use get_harness::{Harness, HarnessKind};
+    /// use serde_json::json;
+    ///
+    /// let harness = Harness::new(HarnessKind::ClaudeCode);
+    /// let config = json!({
+    ///     "mcpServers": {
+    ///         "my-server": {
+    ///             "command": "node",
+    ///             "args": ["server.js"]
+    ///         }
+    ///     }
+    /// });
+    ///
+    /// let servers = harness.parse_mcp_config(&config).unwrap();
+    /// assert!(servers.contains_key("my-server"));
+    /// ```
+    pub fn parse_mcp_config(
+        &self,
+        config: &serde_json::Value,
+    ) -> Result<HashMap<String, McpServer>> {
+        let servers = match self.kind {
+            HarnessKind::ClaudeCode => claude_code::parse_mcp_servers(config)?,
+            HarnessKind::OpenCode => opencode::parse_mcp_servers(config)?,
+            HarnessKind::Goose => goose::parse_mcp_servers(config)?,
+        };
+        Ok(servers.into_iter().collect())
+    }
+
+    /// Parses a single MCP server from harness-native JSON format.
+    ///
+    /// The `name` parameter is used for error context if parsing fails.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error with the server name in the message if parsing fails.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use get_harness::{Harness, HarnessKind};
+    /// use serde_json::json;
+    ///
+    /// let harness = Harness::new(HarnessKind::ClaudeCode);
+    /// let server_config = json!({
+    ///     "command": "node",
+    ///     "args": ["server.js"]
+    /// });
+    ///
+    /// let server = harness.parse_mcp_server_config("my-server", &server_config).unwrap();
+    /// ```
+    pub fn parse_mcp_server_config(
+        &self,
+        name: &str,
+        value: &serde_json::Value,
+    ) -> Result<McpServer> {
+        let result = match self.kind {
+            HarnessKind::ClaudeCode => claude_code::parse_mcp_server(value),
+            HarnessKind::OpenCode => opencode::parse_mcp_server(value),
+            HarnessKind::Goose => goose::parse_mcp_server(value),
+        };
+
+        result.map_err(|e| match e {
+            Error::UnsupportedMcpConfig { harness, reason } => Error::UnsupportedMcpConfig {
+                harness,
+                reason: format!("server '{}': {}", name, reason),
+            },
+            other => other,
+        })
     }
 }
 
