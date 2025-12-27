@@ -38,6 +38,10 @@ pub enum Error {
     /// Binary detection failed due to system error.
     #[error("binary detection error: {0}")]
     BinaryDetection(String),
+
+    /// YAML parsing failed.
+    #[error("YAML parse error: {0}")]
+    YamlParse(#[from] serde_yaml::Error),
 }
 
 /// A specialized Result type for harness operations.
