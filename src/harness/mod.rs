@@ -537,6 +537,18 @@ impl Harness {
         }
     }
 
+    /// Validates an MCP server configuration for this harness.
+    ///
+    /// Combines base validation with harness-specific capability checks.
+    /// Returns detailed issues explaining any incompatibilities.
+    #[must_use]
+    pub fn validate_mcp_server(
+        &self,
+        server: &McpServer,
+    ) -> Vec<crate::validation::ValidationIssue> {
+        crate::validation::validate_for_harness(server, self.kind)
+    }
+
     /// Returns the rules directory resource for the given scope.
     ///
     /// Rules files contain behavioral instructions for the AI assistant.

@@ -36,6 +36,16 @@ impl fmt::Display for HarnessKind {
 }
 
 impl HarnessKind {
+    /// Returns the display name of this harness kind.
+    #[must_use]
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::ClaudeCode => "Claude Code",
+            Self::OpenCode => "OpenCode",
+            Self::Goose => "Goose",
+        }
+    }
+
     /// All supported harness kinds.
     ///
     /// Useful for iterating over all harnesses to check installation status

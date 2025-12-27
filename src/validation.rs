@@ -33,8 +33,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::mcp::{HttpMcpServer, McpServer, SseMcpServer, StdioMcpServer};
-use crate::types::EnvValue;
+use crate::mcp::{HttpMcpServer, McpCapabilities, McpServer, SseMcpServer, StdioMcpServer};
+use crate::types::{EnvValue, HarnessKind};
 
 // Issue code constants for machine-readable classification.
 
@@ -52,6 +52,15 @@ pub const CODE_TIMEOUT_EXCESSIVE: &str = "timeout.excessive";
 
 /// Environment variable name suggests sensitive data.
 pub const CODE_SUSPICIOUS_ENV: &str = "env.suspicious_name";
+
+/// Working directory (cwd) not supported by harness.
+pub const CODE_CWD_UNSUPPORTED: &str = "harness.cwd.unsupported";
+
+/// Toggle (enabled field) not supported by harness.
+pub const CODE_TOGGLE_UNSUPPORTED: &str = "harness.toggle.unsupported";
+
+/// SSE transport deprecated for this harness (prefer HTTP).
+pub const CODE_SSE_DEPRECATED: &str = "harness.transport.sse_deprecated";
 
 /// Severity level for validation issues.
 ///
@@ -107,7 +116,11 @@ impl ValidationIssue {
     /// * `message` - Human-readable description
     /// * `code` - Optional machine-readable code
     #[must_use]
-    pub fn error(field: impl Into<String>, message: impl Into<String>, code: Option<&'static str>) -> Self {
+    pub fn error(
+        field: impl Into<String>,
+        message: impl Into<String>,
+        code: Option<&'static str>,
+    ) -> Self {
         Self {
             severity: Severity::Error,
             field: field.into(),
@@ -124,7 +137,11 @@ impl ValidationIssue {
     /// * `message` - Human-readable description
     /// * `code` - Optional machine-readable code
     #[must_use]
-    pub fn warning(field: impl Into<String>, message: impl Into<String>, code: Option<&'static str>) -> Self {
+    pub fn warning(
+        field: impl Into<String>,
+        message: impl Into<String>,
+        code: Option<&'static str>,
+    ) -> Self {
         Self {
             severity: Severity::Warning,
             field: field.into(),
@@ -192,6 +209,63 @@ pub fn validate_mcp_server(server: &McpServer) -> Vec<ValidationIssue> {
         McpServer::Sse(s) => validate_sse(s),
         McpServer::Http(s) => validate_http(s),
     }
+}
+
+/// Validates an MCP server configuration for a specific harness.
+///
+/// Combines base validation with harness-specific capability checks.
+/// Returns all issues found, including structural problems and harness incompatibilities.
+#[must_use]
+pub fn validate_for_harness(server: &McpServer, kind: HarnessKind) -> Vec<ValidationIssue> {
+    let mut issues = validate_mcp_server(server);
+    let caps = McpCapabilities::for_kind(kind);
+    let harness_name = kind.as_str();
+
+    match server {
+        McpServer::Stdio(s) => {
+            if s.cwd.is_some() && !caps.cwd {
+                issues.push(ValidationIssue::error(
+                    "cwd",
+                    format!("Working directory not supported by {harness_name}"),
+                    Some(CODE_CWD_UNSUPPORTED),
+                ));
+            }
+            if !s.enabled && !caps.toggle {
+                issues.push(ValidationIssue::warning(
+                    "enabled",
+                    format!("{harness_name} ignores the enabled field; server will always run"),
+                    Some(CODE_TOGGLE_UNSUPPORTED),
+                ));
+            }
+        }
+        McpServer::Sse(s) => {
+            if kind == HarnessKind::ClaudeCode {
+                issues.push(ValidationIssue::warning(
+                    "transport",
+                    "SSE transport works but HTTP is preferred for Claude Code",
+                    Some(CODE_SSE_DEPRECATED),
+                ));
+            }
+            if !s.enabled && !caps.toggle {
+                issues.push(ValidationIssue::warning(
+                    "enabled",
+                    format!("{harness_name} ignores the enabled field; server will always run"),
+                    Some(CODE_TOGGLE_UNSUPPORTED),
+                ));
+            }
+        }
+        McpServer::Http(s) => {
+            if !s.enabled && !caps.toggle {
+                issues.push(ValidationIssue::warning(
+                    "enabled",
+                    format!("{harness_name} ignores the enabled field; server will always run"),
+                    Some(CODE_TOGGLE_UNSUPPORTED),
+                ));
+            }
+        }
+    }
+
+    issues
 }
 
 fn validate_stdio(server: &StdioMcpServer) -> Vec<ValidationIssue> {
@@ -468,12 +542,22 @@ mod tests {
         let issues = validate_mcp_server(&server);
 
         assert_eq!(issues.len(), 3);
-        let error_count = issues.iter().filter(|i| i.severity == Severity::Error).count();
-        let warning_count = issues.iter().filter(|i| i.severity == Severity::Warning).count();
+        let error_count = issues
+            .iter()
+            .filter(|i| i.severity == Severity::Error)
+            .count();
+        let warning_count = issues
+            .iter()
+            .filter(|i| i.severity == Severity::Warning)
+            .count();
         assert_eq!(error_count, 1);
         assert_eq!(warning_count, 2);
         assert!(issues.iter().any(|i| i.code == Some(CODE_EMPTY_COMMAND)));
-        assert!(issues.iter().any(|i| i.code == Some(CODE_TIMEOUT_EXCESSIVE)));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == Some(CODE_TIMEOUT_EXCESSIVE))
+        );
         assert!(issues.iter().any(|i| i.code == Some(CODE_SUSPICIOUS_ENV)));
     }
 
@@ -493,5 +577,104 @@ mod tests {
         let issues = validate_mcp_server(&server);
 
         assert!(issues.is_empty());
+    }
+
+    // Harness-specific validation tests
+
+    #[test]
+    fn cwd_on_any_harness_returns_error() {
+        let server = McpServer::Stdio(StdioMcpServer {
+            command: "node".to_string(),
+            args: vec![],
+            env: HashMap::new(),
+            cwd: Some(std::path::PathBuf::from("/tmp")),
+            enabled: true,
+            timeout_ms: None,
+        });
+
+        for kind in HarnessKind::ALL {
+            let issues = validate_for_harness(&server, *kind);
+            assert!(issues.iter().any(|i| i.code == Some(CODE_CWD_UNSUPPORTED)));
+        }
+    }
+
+    #[test]
+    fn disabled_on_claude_code_returns_warning() {
+        let server = McpServer::Stdio(StdioMcpServer {
+            command: "node".to_string(),
+            args: vec![],
+            env: HashMap::new(),
+            cwd: None,
+            enabled: false,
+            timeout_ms: None,
+        });
+
+        let issues = validate_for_harness(&server, HarnessKind::ClaudeCode);
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == Some(CODE_TOGGLE_UNSUPPORTED))
+        );
+    }
+
+    #[test]
+    fn disabled_on_opencode_returns_no_warning() {
+        let server = McpServer::Stdio(StdioMcpServer {
+            command: "node".to_string(),
+            args: vec![],
+            env: HashMap::new(),
+            cwd: None,
+            enabled: false,
+            timeout_ms: None,
+        });
+
+        let issues = validate_for_harness(&server, HarnessKind::OpenCode);
+        assert!(
+            !issues
+                .iter()
+                .any(|i| i.code == Some(CODE_TOGGLE_UNSUPPORTED))
+        );
+    }
+
+    #[test]
+    fn sse_on_claude_code_returns_warning() {
+        let server = McpServer::Sse(SseMcpServer {
+            url: "https://example.com/sse".to_string(),
+            headers: HashMap::new(),
+            enabled: true,
+            timeout_ms: None,
+        });
+
+        let issues = validate_for_harness(&server, HarnessKind::ClaudeCode);
+        assert!(issues.iter().any(|i| i.code == Some(CODE_SSE_DEPRECATED)));
+    }
+
+    #[test]
+    fn sse_on_opencode_returns_no_warning() {
+        let server = McpServer::Sse(SseMcpServer {
+            url: "https://example.com/sse".to_string(),
+            headers: HashMap::new(),
+            enabled: true,
+            timeout_ms: None,
+        });
+
+        let issues = validate_for_harness(&server, HarnessKind::OpenCode);
+        assert!(!issues.iter().any(|i| i.code == Some(CODE_SSE_DEPRECATED)));
+    }
+
+    #[test]
+    fn validate_for_harness_includes_base_validation() {
+        let server = McpServer::Stdio(StdioMcpServer {
+            command: "".to_string(),
+            args: vec![],
+            env: HashMap::new(),
+            cwd: Some(std::path::PathBuf::from("/tmp")),
+            enabled: true,
+            timeout_ms: None,
+        });
+
+        let issues = validate_for_harness(&server, HarnessKind::ClaudeCode);
+        assert!(issues.iter().any(|i| i.code == Some(CODE_EMPTY_COMMAND)));
+        assert!(issues.iter().any(|i| i.code == Some(CODE_CWD_UNSUPPORTED)));
     }
 }
