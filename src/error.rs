@@ -42,6 +42,10 @@ pub enum Error {
     /// YAML parsing failed.
     #[error("YAML parse error: {0}")]
     YamlParse(#[from] serde_yaml::Error),
+
+    /// A required field is missing from the input.
+    #[error("missing required field: {0}")]
+    MissingField(String),
 }
 
 /// A specialized Result type for harness operations.
