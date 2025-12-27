@@ -160,14 +160,7 @@ pub(crate) fn parse_mcp_servers(config: &serde_json::Value) -> Result<Vec<(Strin
             reason: format!("server '{}': {}", name, e),
         })?;
 
-        let enabled = match &server {
-            McpServer::Stdio(s) => s.enabled,
-            McpServer::Http(s) => s.enabled,
-            McpServer::Sse(s) => s.enabled,
-        };
-        if enabled {
-            servers.push((name.clone(), server));
-        }
+        servers.push((name.clone(), server));
     }
 
     Ok(servers)
@@ -714,7 +707,7 @@ mod tests {
     }
 
     #[test]
-    fn parse_mcp_servers_filters_disabled() {
+    fn parse_mcp_servers_includes_disabled() {
         let config = json!({
             "mcp": {
                 "enabled-server": {
@@ -731,8 +724,11 @@ mod tests {
         });
 
         let servers = parse_mcp_servers(&config).unwrap();
-        assert_eq!(servers.len(), 1);
-        assert_eq!(servers[0].0, "enabled-server");
+        assert_eq!(servers.len(), 2);
+
+        let names: Vec<&str> = servers.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"enabled-server"));
+        assert!(names.contains(&"disabled-server"));
     }
 
     #[test]
@@ -855,7 +851,7 @@ mod tests {
         });
 
         let servers = parse_mcp_servers(&config).unwrap();
-        assert_eq!(servers.len(), 2);
+        assert_eq!(servers.len(), 3);
 
         let filesystem = servers
             .iter()
