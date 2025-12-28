@@ -23,6 +23,8 @@ pub enum HarnessKind {
     OpenCode,
     /// Goose (Block's AI coding assistant)
     Goose,
+    /// AMP Code (Sourcegraph's AI coding assistant)
+    AmpCode,
 }
 
 impl fmt::Display for HarnessKind {
@@ -31,6 +33,7 @@ impl fmt::Display for HarnessKind {
             Self::ClaudeCode => write!(f, "Claude Code"),
             Self::OpenCode => write!(f, "OpenCode"),
             Self::Goose => write!(f, "Goose"),
+            Self::AmpCode => write!(f, "AMP Code"),
         }
     }
 }
@@ -43,6 +46,7 @@ impl HarnessKind {
             Self::ClaudeCode => "Claude Code",
             Self::OpenCode => "OpenCode",
             Self::Goose => "Goose",
+            Self::AmpCode => "AMP Code",
         }
     }
 
@@ -60,7 +64,8 @@ impl HarnessKind {
     ///     println!("{}", kind);
     /// }
     /// ```
-    pub const ALL: &'static [Self] = &[Self::ClaudeCode, Self::OpenCode, Self::Goose];
+    pub const ALL: &'static [Self] =
+        &[Self::ClaudeCode, Self::OpenCode, Self::Goose, Self::AmpCode];
 
     /// Returns the known CLI binary names for this harness.
     ///
@@ -82,6 +87,7 @@ impl HarnessKind {
             Self::ClaudeCode => &["claude"],
             Self::OpenCode => &["opencode"],
             Self::Goose => &["goose"],
+            Self::AmpCode => &["amp"],
         }
     }
 }
