@@ -407,11 +407,12 @@ impl Harness {
     pub fn mcp(&self, scope: &Scope) -> Result<Option<ConfigResource>> {
         let (file, key_path, format) = match self.kind {
             HarnessKind::ClaudeCode => {
-                // Claude Code CLI uses different files than Claude Desktop:
-                // - Global: ~/.claude.json (in home dir, NOT in .claude/)
-                // - Project: .mcp.json (in project root, NOT in .claude/)
+                // Claude Code CLI uses .mcp.json in config directories:
+                // - Global: ~/.claude/.mcp.json
+                // - Project: .mcp.json (in project root)
+                // Note: ~/.claude.json is a cache/stats file, NOT MCP config
                 let file = match scope {
-                    Scope::Global => crate::platform::home_dir()?.join(".claude.json"),
+                    Scope::Global => claude_code::config_dir(&Scope::Global)?.join(".mcp.json"),
                     Scope::Project(root) => root.join(".mcp.json"),
                 };
                 (file, "/mcpServers".into(), FileFormat::Json)
@@ -1705,7 +1706,11 @@ mod tests {
         });
 
         let servers = harness.parse_mcp_config(&config).unwrap();
-        assert_eq!(servers.len(), 2, "should include both enabled and disabled servers");
+        assert_eq!(
+            servers.len(),
+            2,
+            "should include both enabled and disabled servers"
+        );
         assert!(servers.contains_key("enabled-server"));
         assert!(servers.contains_key("disabled-server"));
     }
@@ -1738,6 +1743,9 @@ mod tests {
         let result = harness.parse_mcp_server_config("my-server", &invalid_config);
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("my-server"), "error should include server name");
+        assert!(
+            err.contains("my-server"),
+            "error should include server name"
+        );
     }
 }
