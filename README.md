@@ -1,5 +1,9 @@
 # harness-locate
 
+[![Crates.io](https://img.shields.io/crates/v/harness-locate.svg)](https://crates.io/crates/harness-locate)
+[![Documentation](https://docs.rs/harness-locate/badge.svg)](https://docs.rs/harness-locate)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 Cross-platform harness path discovery for AI coding CLI tools.
 
 ## Features
