@@ -41,6 +41,7 @@ pub fn commands_dir(scope: &Scope) -> Result<PathBuf> {
     match scope {
         Scope::Global => Ok(global_config_dir()?.join("command")),
         Scope::Project(root) => Ok(project_config_dir(root).join("command")),
+        Scope::Custom(path) => Ok(path.join("command")),
     }
 }
 
@@ -51,6 +52,7 @@ pub fn config_dir(scope: &Scope) -> Result<PathBuf> {
     match scope {
         Scope::Global => global_config_dir(),
         Scope::Project(root) => Ok(project_config_dir(root)),
+        Scope::Custom(path) => Ok(path.clone()),
     }
 }
 
@@ -71,6 +73,7 @@ pub fn skills_dir(scope: &Scope) -> Option<PathBuf> {
     match scope {
         Scope::Global => global_config_dir().ok().map(|p| p.join("skill")),
         Scope::Project(root) => Some(project_config_dir(root).join("skill")),
+        Scope::Custom(path) => Some(path.join("skill")),
     }
 }
 
@@ -84,6 +87,7 @@ pub fn rules_dir(scope: &Scope) -> Option<PathBuf> {
     match scope {
         Scope::Global => None,
         Scope::Project(root) => Some(root.clone()),
+        Scope::Custom(path) => Some(path.clone()),
     }
 }
 

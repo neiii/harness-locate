@@ -48,6 +48,7 @@ pub fn config_dir(scope: &Scope) -> Result<PathBuf> {
     match scope {
         Scope::Global => global_config_dir(),
         Scope::Project(root) => Ok(project_config_dir(root)),
+        Scope::Custom(path) => Ok(path.clone()),
     }
 }
 
@@ -69,14 +70,11 @@ pub fn mcp_dir(scope: &Scope) -> Result<PathBuf> {
 pub fn skills_dir(scope: &Scope) -> Option<PathBuf> {
     match scope {
         Scope::Global => {
-            // Goose uses ~/.config/agents/skills/ for global skills
             let config = platform::config_dir().ok()?;
             Some(config.join("agents").join("skills"))
         }
-        Scope::Project(root) => {
-            // Project skills are in .agents/skills/
-            Some(root.join(".agents").join("skills"))
-        }
+        Scope::Project(root) => Some(root.join(".agents").join("skills")),
+        Scope::Custom(path) => Some(path.join("skills")),
     }
 }
 
@@ -90,6 +88,7 @@ pub fn rules_dir(scope: &Scope) -> Option<PathBuf> {
     match scope {
         Scope::Global => global_config_dir().ok(),
         Scope::Project(root) => Some(root.clone()),
+        Scope::Custom(path) => Some(path.clone()),
     }
 }
 

@@ -471,6 +471,7 @@ impl Harness {
                 let file = match scope {
                     Scope::Global => claude_code::config_dir(&Scope::Global)?.join(".mcp.json"),
                     Scope::Project(root) => root.join(".mcp.json"),
+                    Scope::Custom(path) => path.join(".mcp.json"),
                 };
                 (file, "/mcpServers".into(), FileFormat::Json)
             }

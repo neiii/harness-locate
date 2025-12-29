@@ -102,6 +102,8 @@ pub enum Scope {
     Global,
     /// Project-local configuration (e.g., `.claude/` in project root)
     Project(PathBuf),
+    /// Custom path for profile-scoped resources (inherits harness directory structure)
+    Custom(PathBuf),
 }
 
 /// Installation status of a harness on the current system.
