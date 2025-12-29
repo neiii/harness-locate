@@ -438,7 +438,7 @@ impl Harness {
             }
             HarnessKind::OpenCode => {
                 let base = opencode::config_dir(scope)?;
-                (base.join("opencode.json"), "/mcp".into(), FileFormat::Json)
+                (base.join("opencode.jsonc"), "/mcp".into(), FileFormat::Json)
             }
             HarnessKind::Goose => {
                 let base = goose::config_dir(scope)?;
