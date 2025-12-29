@@ -366,9 +366,47 @@ impl Harness {
                     exists: path.exists(),
                     path,
                     structure: DirectoryStructure::Flat {
-                        file_pattern: "*.{yaml,json}".into(),
+                        file_pattern: "*.md".into(),
                     },
                     file_format: FileFormat::Yaml,
+                }))
+            }
+            HarnessKind::ClaudeCode | HarnessKind::Goose | HarnessKind::AmpCode => Ok(None),
+        }
+    }
+
+    /// Returns the configuration file location for config-based agents.
+    ///
+    /// OpenCode supports defining agents in `opencode.jsonc` under the `agent` key,
+    /// in addition to directory-based agents returned by [`agents()`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the configuration directory cannot be determined.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use harness_locate::{Harness, HarnessKind, Scope};
+    ///
+    /// let harness = Harness::new(HarnessKind::OpenCode);
+    /// if let Some(config) = harness.agents_config(&Scope::Global)? {
+    ///     println!("Agent config: {}", config.file.display());
+    ///     println!("Key path: {}", config.key_path);
+    /// }
+    /// # Ok::<(), harness_locate::Error>(())
+    /// ```
+    pub fn agents_config(&self, scope: &Scope) -> Result<Option<ConfigResource>> {
+        match self.kind {
+            HarnessKind::OpenCode => {
+                let base = opencode::config_dir(scope)?;
+                let file = base.join("opencode.jsonc");
+                Ok(Some(ConfigResource {
+                    file_exists: file.exists(),
+                    file,
+                    key_path: "/agent".into(),
+                    format: FileFormat::Jsonc,
+                    schema_url: None,
                 }))
             }
             HarnessKind::ClaudeCode | HarnessKind::Goose | HarnessKind::AmpCode => Ok(None),
