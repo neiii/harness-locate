@@ -1,6 +1,6 @@
 [package]
 name = "harness-locate"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 
 description = "Cross-platform library for configuration, path discovery and MCP server management for agentic code harnesses (Claude Code, OpenCode, Goose, AMP Code)"

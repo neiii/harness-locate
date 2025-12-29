@@ -13,13 +13,6 @@ Cross-platform harness path discovery for AI coding CLI tools.
 - Unified MCP server configuration types
 - Cross-platform support (macOS, Linux, Windows)
 
-## Installation
-
-```toml
-[dependencies]
-harness-locate = "0.2.2"
-```
-
 ## Quick Start
 
 ### Detect Installed Harnesses
