@@ -62,18 +62,15 @@ pub fn mcp_dir(scope: &Scope) -> Result<PathBuf> {
 /// Returns the skills directory path for Goose.
 ///
 /// Goose stores skills in:
-/// - Global: `~/.config/agents/skills/`
-/// - Project: `.agents/skills/`
+/// - Global: `~/.config/goose/skills/`
+/// - Project: `.goose/skills/`
 ///
 /// Skills use the same SKILL.md format with YAML frontmatter.
 #[must_use]
 pub fn skills_dir(scope: &Scope) -> Option<PathBuf> {
     match scope {
-        Scope::Global => {
-            let config = platform::config_dir().ok()?;
-            Some(config.join("agents").join("skills"))
-        }
-        Scope::Project(root) => Some(root.join(".agents").join("skills")),
+        Scope::Global => Some(global_config_dir().ok()?.join("skills")),
+        Scope::Project(root) => Some(project_config_dir(root).join("skills")),
         Scope::Custom(path) => Some(path.join("skills")),
     }
 }
@@ -339,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    fn skills_dir_global_returns_agents_skills() {
+    fn skills_dir_global_returns_goose_skills() {
         if platform::config_dir().is_err() {
             return;
         }
@@ -348,17 +345,17 @@ mod tests {
         assert!(result.is_some());
         let path = result.unwrap();
         assert!(path.is_absolute());
-        assert!(path.ends_with("agents/skills"));
+        assert!(path.ends_with("goose/skills"));
     }
 
     #[test]
-    fn skills_dir_project_returns_dot_agents_skills() {
+    fn skills_dir_project_returns_dot_goose_skills() {
         let root = PathBuf::from("/some/project");
         let result = skills_dir(&Scope::Project(root));
         assert!(result.is_some());
         assert_eq!(
             result.unwrap(),
-            PathBuf::from("/some/project/.agents/skills")
+            PathBuf::from("/some/project/.goose/skills")
         );
     }
 

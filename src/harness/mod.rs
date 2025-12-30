@@ -1199,7 +1199,7 @@ mod tests {
         let resource = result.unwrap();
         assert!(resource.is_some());
         let dir = resource.unwrap();
-        assert!(dir.path.ends_with("agents/skills"));
+        assert!(dir.path.ends_with("goose/skills"));
         assert!(matches!(dir.structure, DirectoryStructure::Nested { .. }));
     }
 
@@ -1211,7 +1211,7 @@ mod tests {
         let resource = result.unwrap();
         assert!(resource.is_some());
         let dir = resource.unwrap();
-        assert_eq!(dir.path, PathBuf::from("/some/project/.agents/skills"));
+        assert_eq!(dir.path, PathBuf::from("/some/project/.goose/skills"));
         assert!(matches!(dir.structure, DirectoryStructure::Nested { .. }));
     }
 

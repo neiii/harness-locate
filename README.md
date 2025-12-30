@@ -83,14 +83,14 @@ For directory-based resources (skills, commands):
 #### Directory Structure Patterns
 
 **Skills** use **nested** structure (one subdirectory per skill):
-```
+```text
 ~/.config/opencode/skill/
   my-skill/
     SKILL.md
 ```
 
 **Commands** use **flat** structure (files directly in directory):
-```
+```text
 ~/.config/opencode/command/
   my-command.md
   another-command.md
