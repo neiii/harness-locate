@@ -7,3 +7,12 @@ repository.workspace = true
 description = "Skill discovery and fetching for AI coding agents"
 
 [dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+thiserror = { workspace = true }
+ureq = { workspace = true }
+zip = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
