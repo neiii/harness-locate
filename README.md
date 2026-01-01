@@ -8,10 +8,17 @@ Cross-platform harness path discovery for AI coding CLI tools.
 
 ## Features
 
-- Detect installed AI coding assistants (Claude Code, OpenCode, Goose, AMP Code)
+- Detect installed AI coding assistants (Claude Code, OpenCode, Goose)
 - Resolve configuration paths (global and project-scoped)
 - Unified MCP server configuration types
 - Cross-platform support (macOS, Linux, Windows)
+
+## Installation
+
+```toml
+[dependencies]
+harness-locate = "0.1"
+```
 
 ## Quick Start
 
@@ -66,8 +73,7 @@ if harness.supports_mcp_server(&server) {
 |---------|--------|----------|-----|-------|
 | Claude Code | Yes | Yes | Yes | Yes |
 | OpenCode | Yes | Yes | Yes | Yes |
-| Goose | Yes | No | Yes | Yes |
-| AMP Code | Yes | Yes | Yes | Yes |
+| Goose | No | No | Yes | Yes |
 
 ## Resource Types
 
@@ -79,24 +85,6 @@ For directory-based resources (skills, commands):
 - `exists` - Whether directory exists
 - `structure` - Flat or Nested layout
 - `file_format` - Expected file format
-
-#### Directory Structure Patterns
-
-**Skills** use **nested** structure (one subdirectory per skill):
-```text
-~/.config/opencode/skill/
-  my-skill/
-    SKILL.md
-```
-
-**Commands** use **flat** structure (files directly in directory):
-```text
-~/.config/opencode/command/
-  my-command.md
-  another-command.md
-```
-
-This pattern applies across all harnesses that support the resource type.
 
 ### ConfigResource
 

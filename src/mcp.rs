@@ -299,16 +299,6 @@ impl McpCapabilities {
                 headers: true,
                 cwd: false,
             },
-            HarnessKind::AmpCode => Self {
-                stdio: true,
-                sse: true,
-                http: true,
-                oauth: true,
-                timeout: true,
-                toggle: false,
-                headers: true,
-                cwd: false,
-            },
         }
     }
 }

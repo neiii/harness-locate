@@ -1,9 +1,9 @@
 [package]
 name = "harness-locate"
-version = "0.2.4"
+version = "0.1.1"
 edition = "2024"
 
-description = "Cross-platform library for configuration, path discovery and MCP server management for agentic code harnesses (Claude Code, OpenCode, Goose, AMP Code)"
+description = "Cross-platform library for configuration, path discovery and MCP server management for agentic code harnesses (Claude Code, OpenCode, Goose)"
 license = "MIT"
 readme = "README.md"
 repository = "https://github.com/neiii/harness-locate"

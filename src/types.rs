@@ -102,8 +102,6 @@ pub enum Scope {
     Global,
     /// Project-local configuration (e.g., `.claude/` in project root)
     Project(PathBuf),
-    /// Custom path for profile-scoped resources (inherits harness directory structure)
-    Custom(PathBuf),
 }
 
 /// Installation status of a harness on the current system.
@@ -417,7 +415,7 @@ impl EnvValue {
         match self {
             Self::Plain(s) => s.clone(),
             Self::EnvRef { env } => match kind {
-                HarnessKind::ClaudeCode | HarnessKind::AmpCode => format!("${{{env}}}"),
+                HarnessKind::ClaudeCode => format!("${{{env}}}"),
                 HarnessKind::OpenCode => format!("{{env:{env}}}"),
                 HarnessKind::Goose => {
                     // Goose resolves env vars at runtime; return resolved value
@@ -458,7 +456,7 @@ impl EnvValue {
     #[must_use]
     pub fn from_native(s: &str, kind: HarnessKind) -> Self {
         match kind {
-            HarnessKind::ClaudeCode | HarnessKind::AmpCode => {
+            HarnessKind::ClaudeCode => {
                 // Parse ${VAR} pattern
                 if let Some(var) = s.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
                     Self::EnvRef {
