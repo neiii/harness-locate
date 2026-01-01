@@ -21,3 +21,4 @@ zip = "2"
 
 # Internal crates
 harness-locate = { path = "crates/harness-locate" }
+skills-locate = { path = "crates/skills-locate" }
