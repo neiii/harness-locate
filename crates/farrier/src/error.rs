@@ -16,4 +16,7 @@ pub enum Error {
 
     #[error("Invalid source: {0}")]
     InvalidSource(String),
+
+    #[error("Invalid UTF-8: {0}")]
+    Utf8(#[from] std::str::Utf8Error),
 }
