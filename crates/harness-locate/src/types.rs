@@ -90,6 +90,65 @@ impl HarnessKind {
             Self::AmpCode => &["amp"],
         }
     }
+
+    /// Returns the expected directory name(s) for a resource kind.
+    ///
+    /// Different harnesses use different naming conventions:
+    /// - OpenCode uses singular names (`skill`, `command`)
+    /// - Other harnesses use plural names (`skills`, `commands`)
+    ///
+    /// Returns `None` if the harness doesn't support that resource type.
+    /// When multiple names are returned, index 0 is the canonical name.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use harness_locate::{HarnessKind, ResourceKind};
+    ///
+    /// // OpenCode uses singular
+    /// assert_eq!(
+    ///     HarnessKind::OpenCode.directory_names(ResourceKind::Skills),
+    ///     Some(&["skill"][..])
+    /// );
+    ///
+    /// // Claude Code uses plural
+    /// assert_eq!(
+    ///     HarnessKind::ClaudeCode.directory_names(ResourceKind::Skills),
+    ///     Some(&["skills"][..])
+    /// );
+    ///
+    /// // Goose doesn't support commands
+    /// assert_eq!(
+    ///     HarnessKind::Goose.directory_names(ResourceKind::Commands),
+    ///     None
+    /// );
+    /// ```
+    #[must_use]
+    pub const fn directory_names(self, resource: ResourceKind) -> Option<&'static [&'static str]> {
+        match (self, resource) {
+            // OpenCode - singular names
+            (Self::OpenCode, ResourceKind::Skills) => Some(&["skill"]),
+            (Self::OpenCode, ResourceKind::Commands) => Some(&["command"]),
+            (Self::OpenCode, ResourceKind::Agents) => Some(&["agent"]),
+            (Self::OpenCode, ResourceKind::Plugins) => Some(&["plugin"]),
+
+            // Claude Code - plural names
+            (Self::ClaudeCode, ResourceKind::Skills) => Some(&["skills"]),
+            (Self::ClaudeCode, ResourceKind::Commands) => Some(&["commands"]),
+            (Self::ClaudeCode, ResourceKind::Agents) => Some(&["agents"]),
+            (Self::ClaudeCode, ResourceKind::Plugins) => Some(&["plugins"]),
+
+            // Goose - limited support (skills only)
+            (Self::Goose, ResourceKind::Skills) => Some(&["skills"]),
+
+            // AmpCode - plural names, limited support
+            (Self::AmpCode, ResourceKind::Skills) => Some(&["skills"]),
+            (Self::AmpCode, ResourceKind::Commands) => Some(&["commands"]),
+
+            // Unsupported combinations
+            _ => None,
+        }
+    }
 }
 
 /// Scope for path resolution.
@@ -234,6 +293,31 @@ pub enum PathType {
     Mcp,
     /// Rules and constraints
     Rules,
+}
+
+/// Categories of resources that harnesses manage in named directories.
+///
+/// Used with [`HarnessKind::directory_names`] to query expected
+/// directory naming conventions.
+///
+/// **Note:** Rules are not included because they are stored at the root
+/// level (config dir or project root), not in a named subdirectory.
+///
+/// # Extensibility
+///
+/// This enum is marked `#[non_exhaustive]` to allow adding new
+/// resource kinds in future versions without breaking changes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ResourceKind {
+    /// Skills/capabilities definitions
+    Skills,
+    /// Custom commands
+    Commands,
+    /// Agent definitions
+    Agents,
+    /// Plugin extensions
+    Plugins,
 }
 
 /// File formats used by harness configuration files.
@@ -720,5 +804,59 @@ mod tests {
         let status = InstallationStatus::NotInstalled;
         assert_eq!(status.binary_path(), None);
         assert_eq!(status.config_path(), None);
+    }
+
+    #[test]
+    fn directory_names_opencode_singular() {
+        assert_eq!(
+            HarnessKind::OpenCode.directory_names(ResourceKind::Skills),
+            Some(&["skill"][..])
+        );
+        assert_eq!(
+            HarnessKind::OpenCode.directory_names(ResourceKind::Commands),
+            Some(&["command"][..])
+        );
+        assert_eq!(
+            HarnessKind::OpenCode.directory_names(ResourceKind::Agents),
+            Some(&["agent"][..])
+        );
+        assert_eq!(
+            HarnessKind::OpenCode.directory_names(ResourceKind::Plugins),
+            Some(&["plugin"][..])
+        );
+    }
+
+    #[test]
+    fn directory_names_claude_code_plural() {
+        assert_eq!(
+            HarnessKind::ClaudeCode.directory_names(ResourceKind::Skills),
+            Some(&["skills"][..])
+        );
+        assert_eq!(
+            HarnessKind::ClaudeCode.directory_names(ResourceKind::Commands),
+            Some(&["commands"][..])
+        );
+    }
+
+    #[test]
+    fn directory_names_unsupported_returns_none() {
+        assert_eq!(
+            HarnessKind::Goose.directory_names(ResourceKind::Commands),
+            None
+        );
+        assert_eq!(
+            HarnessKind::Goose.directory_names(ResourceKind::Plugins),
+            None
+        );
+    }
+
+    #[test]
+    fn directory_names_all_harnesses_support_skills() {
+        for kind in HarnessKind::ALL {
+            assert!(
+                kind.directory_names(ResourceKind::Skills).is_some(),
+                "{kind} should support skills"
+            );
+        }
     }
 }

@@ -28,6 +28,6 @@ pub use mcp::{
 pub use skill::{Frontmatter, Skill, parse_frontmatter, parse_skill};
 pub use types::{
     ConfigResource, DirectoryResource, DirectoryStructure, EnvValue, FileFormat, HarnessKind,
-    InstallationStatus, PathType, Scope,
+    InstallationStatus, PathType, ResourceKind, Scope,
 };
 pub use validation::{Severity, ValidationIssue, validate_mcp_server};

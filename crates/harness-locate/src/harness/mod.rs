@@ -9,7 +9,7 @@ use crate::error::{Error, Result};
 use crate::mcp::{McpCapabilities, McpServer};
 use crate::types::{
     ConfigResource, DirectoryResource, DirectoryStructure, FileFormat, HarnessKind,
-    InstallationStatus, Scope,
+    InstallationStatus, ResourceKind, Scope,
 };
 
 pub mod amp_code;
@@ -73,6 +73,14 @@ impl Harness {
     #[must_use]
     pub fn kind(&self) -> HarnessKind {
         self.kind
+    }
+
+    /// Returns the expected directory name(s) for a resource kind.
+    ///
+    /// Delegates to [`HarnessKind::directory_names`].
+    #[must_use]
+    pub const fn directory_names(&self, resource: ResourceKind) -> Option<&'static [&'static str]> {
+        self.kind.directory_names(resource)
     }
 
     /// Creates a new harness instance for the given kind.
