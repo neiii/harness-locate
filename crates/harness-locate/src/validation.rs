@@ -29,12 +29,17 @@
 //! ```
 
 use std::collections::HashMap;
+use std::sync::LazyLock;
 
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::mcp::{HttpMcpServer, McpCapabilities, McpServer, SseMcpServer, StdioMcpServer};
 use crate::types::{EnvValue, HarnessKind};
+
+static SKILL_NAME_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(SKILL_NAME_REGEX).expect("invalid skill name regex"));
 
 // Issue code constants for machine-readable classification.
 
@@ -78,6 +83,38 @@ pub const CODE_AGENT_UNSUPPORTED: &str = "agent.unsupported";
 
 /// Agent frontmatter failed to parse.
 pub const CODE_AGENT_PARSE_ERROR: &str = "agent.parse_error";
+
+// Skill validation codes.
+
+/// Skill name has invalid format for harness.
+pub const CODE_SKILL_NAME_FORMAT: &str = "skill.name.invalid_format";
+
+/// Skill name exceeds maximum length.
+pub const CODE_SKILL_NAME_LENGTH: &str = "skill.name.length";
+
+/// Skill description exceeds maximum length.
+pub const CODE_SKILL_DESCRIPTION_LENGTH: &str = "skill.description.length";
+
+/// Skill name does not match directory name.
+pub const CODE_SKILL_NAME_DIRECTORY_MISMATCH: &str = "skill.name.directory_mismatch";
+
+/// Harness does not support skills.
+pub const CODE_SKILL_UNSUPPORTED: &str = "skill.unsupported";
+
+/// Skill frontmatter failed to parse.
+pub const CODE_SKILL_PARSE_ERROR: &str = "skill.parse_error";
+
+/// Skill is missing required description field.
+pub const CODE_SKILL_DESCRIPTION_MISSING: &str = "skill.description.missing";
+
+/// Skill name validation regex: lowercase alphanumeric with single hyphens.
+pub const SKILL_NAME_REGEX: &str = r"^[a-z0-9]+(-[a-z0-9]+)*$";
+
+/// Maximum length for skill name.
+pub const SKILL_NAME_MAX_LEN: usize = 64;
+
+/// Maximum length for skill description.
+pub const SKILL_DESCRIPTION_MAX_LEN: usize = 1024;
 
 /// Severity level for validation issues.
 ///
@@ -125,7 +162,6 @@ pub struct AgentCapabilities {
 }
 
 impl AgentCapabilities {
-    /// Returns agent capabilities for a harness, or `None` if agents unsupported.
     #[must_use]
     pub fn for_kind(kind: HarnessKind) -> Option<Self> {
         match kind {
@@ -138,6 +174,45 @@ impl AgentCapabilities {
                 tools_format: ToolsFormat::CommaSeparatedString,
                 color_format: ColorFormat::NamedOrHex,
                 supported_modes: &["subagent", "primary"],
+            }),
+            HarnessKind::Goose => None,
+        }
+    }
+}
+
+/// Expected format for skill `name` field.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NameFormat {
+    /// Lowercase alphanumeric with hyphens only: `^[a-z0-9]+(-[a-z0-9]+)*$`
+    LowercaseHyphenated,
+    /// Any string format accepted.
+    Any,
+}
+
+/// Describes skill validation requirements for a harness.
+#[derive(Debug, Clone)]
+pub struct SkillCapabilities {
+    /// Expected format for `name` field.
+    pub name_format: NameFormat,
+    /// Whether skill name must match parent directory name.
+    pub name_must_match_directory: bool,
+    /// Whether description field is required.
+    pub description_required: bool,
+}
+
+impl SkillCapabilities {
+    #[must_use]
+    pub fn for_kind(kind: HarnessKind) -> Option<Self> {
+        match kind {
+            HarnessKind::OpenCode => Some(Self {
+                name_format: NameFormat::LowercaseHyphenated,
+                name_must_match_directory: true,
+                description_required: true,
+            }),
+            HarnessKind::ClaudeCode | HarnessKind::AmpCode => Some(Self {
+                name_format: NameFormat::Any,
+                name_must_match_directory: false,
+                description_required: false,
             }),
             HarnessKind::Goose => None,
         }
@@ -391,6 +466,98 @@ pub fn validate_agent_for_harness(content: &str, kind: HarnessKind) -> Vec<Valid
                 caps.supported_modes
             ),
             Some(CODE_AGENT_MODE_UNSUPPORTED),
+        ));
+    }
+
+    issues
+}
+
+/// Validates skill frontmatter content for a specific harness.
+///
+/// Returns an empty vector if valid, or a list of issues found.
+/// Returns a single `CODE_SKILL_UNSUPPORTED` error if harness doesn't support skills.
+#[must_use]
+pub fn validate_skill_for_harness(
+    content: &str,
+    directory_name: &str,
+    kind: HarnessKind,
+) -> Vec<ValidationIssue> {
+    let mut issues = Vec::new();
+
+    let caps = match SkillCapabilities::for_kind(kind) {
+        Some(c) => c,
+        None => {
+            issues.push(ValidationIssue::error(
+                "skill",
+                format!("{} does not support skills", kind.as_str()),
+                Some(CODE_SKILL_UNSUPPORTED),
+            ));
+            return issues;
+        }
+    };
+
+    let frontmatter = match crate::skill::parse_frontmatter(content) {
+        Ok(fm) => fm,
+        Err(e) => {
+            issues.push(ValidationIssue::error(
+                "frontmatter",
+                format!("failed to parse frontmatter: {e}"),
+                Some(CODE_SKILL_PARSE_ERROR),
+            ));
+            return issues;
+        }
+    };
+
+    let yaml = match &frontmatter.yaml {
+        Some(y) => y,
+        None => return issues,
+    };
+
+    if let Some(name) = yaml.get("name").and_then(|v| v.as_str()) {
+        if caps.name_format == NameFormat::LowercaseHyphenated && !SKILL_NAME_RE.is_match(name) {
+            issues.push(ValidationIssue::error(
+                "name",
+                format!(
+                    "name '{}' must be lowercase alphanumeric with hyphens (regex: {})",
+                    name, SKILL_NAME_REGEX
+                ),
+                Some(CODE_SKILL_NAME_FORMAT),
+            ));
+        }
+
+        if name.len() > SKILL_NAME_MAX_LEN {
+            issues.push(ValidationIssue::error(
+                "name",
+                format!("name exceeds {} characters", SKILL_NAME_MAX_LEN),
+                Some(CODE_SKILL_NAME_LENGTH),
+            ));
+        }
+
+        if caps.name_must_match_directory && name != directory_name {
+            issues.push(ValidationIssue::error(
+                "name",
+                format!(
+                    "name '{}' must match directory name '{}'",
+                    name, directory_name
+                ),
+                Some(CODE_SKILL_NAME_DIRECTORY_MISMATCH),
+            ));
+        }
+    }
+
+    if let Some(description) = yaml.get("description").and_then(|v| v.as_str()) {
+        if description.len() > SKILL_DESCRIPTION_MAX_LEN {
+            issues.push(ValidationIssue::error(
+                "description",
+                format!("description exceeds {} characters", SKILL_DESCRIPTION_MAX_LEN),
+                Some(CODE_SKILL_DESCRIPTION_LENGTH),
+            ));
+        }
+    } else if caps.description_required {
+        issues.push(ValidationIssue::warning(
+            "description",
+            format!("{} recommends a description field", kind.as_str()),
+            Some(CODE_SKILL_DESCRIPTION_MISSING),
         ));
     }
 
@@ -1017,5 +1184,100 @@ mod tests {
         assert!(!is_hex_color("#FFF"));
         assert!(!is_hex_color("FF5733"));
         assert!(!is_hex_color("#GGGGGG"));
+    }
+
+    #[test]
+    fn opencode_rejects_uppercase_skill_name() {
+        let content = "---\nname: Hook Development\ndescription: test\n---\nSkill content";
+        let issues = validate_skill_for_harness(content, "hook-development", HarnessKind::OpenCode);
+        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_NAME_FORMAT)));
+    }
+
+    #[test]
+    fn opencode_rejects_name_directory_mismatch() {
+        let content = "---\nname: other-name\ndescription: test\n---\nSkill content";
+        let issues = validate_skill_for_harness(content, "actual-directory", HarnessKind::OpenCode);
+        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_NAME_DIRECTORY_MISMATCH)));
+    }
+
+    #[test]
+    fn opencode_accepts_valid_skill() {
+        let content = "---\nname: my-skill\ndescription: A valid skill\n---\nSkill content";
+        let issues = validate_skill_for_harness(content, "my-skill", HarnessKind::OpenCode);
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn claude_code_accepts_any_skill_name() {
+        let content = "---\nname: Hook Development\ndescription: test\n---\nSkill content";
+        let issues = validate_skill_for_harness(content, "Hook Development", HarnessKind::ClaudeCode);
+        assert!(issues.is_empty());
+    }
+
+    #[test]
+    fn opencode_warns_missing_description() {
+        let content = "---\nname: my-skill\n---\nSkill content";
+        let issues = validate_skill_for_harness(content, "my-skill", HarnessKind::OpenCode);
+        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_DESCRIPTION_MISSING)));
+        assert!(issues.iter().all(|i| i.severity == Severity::Warning));
+    }
+
+    #[test]
+    fn opencode_rejects_long_skill_name() {
+        let long_name = "a".repeat(65);
+        let content = format!("---\nname: {}\ndescription: test\n---\nSkill content", long_name);
+        let issues = validate_skill_for_harness(&content, &long_name, HarnessKind::OpenCode);
+        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_NAME_LENGTH)));
+    }
+
+    #[test]
+    fn opencode_rejects_long_description() {
+        let long_desc = "a".repeat(1025);
+        let content = format!("---\nname: my-skill\ndescription: {}\n---\nSkill content", long_desc);
+        let issues = validate_skill_for_harness(&content, "my-skill", HarnessKind::OpenCode);
+        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_DESCRIPTION_LENGTH)));
+    }
+
+    #[test]
+    fn skill_name_regex_validates_correctly() {
+        assert!(SKILL_NAME_RE.is_match("my-skill"));
+        assert!(SKILL_NAME_RE.is_match("a"));
+        assert!(SKILL_NAME_RE.is_match("skill123"));
+        assert!(SKILL_NAME_RE.is_match("my-long-skill-name"));
+        assert!(!SKILL_NAME_RE.is_match("My-Skill"));
+        assert!(!SKILL_NAME_RE.is_match("my--skill"));
+        assert!(!SKILL_NAME_RE.is_match("-my-skill"));
+        assert!(!SKILL_NAME_RE.is_match("my-skill-"));
+        assert!(!SKILL_NAME_RE.is_match("my skill"));
+    }
+
+    #[test]
+    fn skill_capabilities_for_opencode() {
+        let caps = SkillCapabilities::for_kind(HarnessKind::OpenCode).unwrap();
+        assert_eq!(caps.name_format, NameFormat::LowercaseHyphenated);
+        assert!(caps.name_must_match_directory);
+        assert!(caps.description_required);
+    }
+
+    #[test]
+    fn skill_capabilities_for_claude_code() {
+        let caps = SkillCapabilities::for_kind(HarnessKind::ClaudeCode).unwrap();
+        assert_eq!(caps.name_format, NameFormat::Any);
+        assert!(!caps.name_must_match_directory);
+        assert!(!caps.description_required);
+    }
+
+    #[test]
+    fn goose_returns_skill_unsupported() {
+        let content = "---\nname: test\n---\nSkill content";
+        let issues = validate_skill_for_harness(content, "test", HarnessKind::Goose);
+        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_UNSUPPORTED)));
+    }
+
+    #[test]
+    fn skill_invalid_yaml_returns_parse_error() {
+        let content = "---\nname: [unclosed\n---\nSkill content";
+        let issues = validate_skill_for_harness(content, "test", HarnessKind::OpenCode);
+        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_PARSE_ERROR)));
     }
 }

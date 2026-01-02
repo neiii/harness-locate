@@ -618,6 +618,20 @@ impl Harness {
         crate::validation::validate_for_harness(server, self.kind)
     }
 
+    #[must_use]
+    pub fn skill_capabilities(&self) -> Option<crate::validation::SkillCapabilities> {
+        crate::validation::SkillCapabilities::for_kind(self.kind)
+    }
+
+    #[must_use]
+    pub fn validate_skill(
+        &self,
+        content: &str,
+        directory_name: &str,
+    ) -> Vec<crate::validation::ValidationIssue> {
+        crate::validation::validate_skill_for_harness(content, directory_name, self.kind)
+    }
+
     /// Returns the rules directory resource for the given scope.
     ///
     /// Rules files contain behavioral instructions for the AI assistant.
