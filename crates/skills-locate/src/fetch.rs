@@ -39,15 +39,14 @@ fn try_fetch(url: &str) -> Result<Vec<u8>> {
     })?;
 
     // Check content-length header before reading body
-    if let Some(len) = response.headers().get("content-length") {
-        if let Ok(size) = len.to_str().unwrap_or("").parse::<u64>() {
-            if size > SIZE_LIMIT {
-                return Err(Error::SizeLimit {
-                    size,
-                    limit: SIZE_LIMIT,
-                });
-            }
-        }
+    if let Some(len) = response.headers().get("content-length")
+        && let Ok(size) = len.to_str().unwrap_or("").parse::<u64>()
+        && size > SIZE_LIMIT
+    {
+        return Err(Error::SizeLimit {
+            size,
+            limit: SIZE_LIMIT,
+        });
     }
 
     // ureq 3.x: must use body_mut().with_config().limit() to override 10MB default
