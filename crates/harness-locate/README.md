@@ -8,7 +8,7 @@ Cross-platform harness path discovery for AI coding CLI tools.
 
 ## Features
 
-- Detect installed AI coding assistants (Claude Code, OpenCode, Goose, AMP Code)
+- Detect installed AI coding assistants (Claude Code, OpenCode, Goose, AMP Code, Copilot CLI)
 - Resolve configuration paths (global and project-scoped)
 - Unified MCP server configuration types
 - Cross-platform support (macOS, Linux, Windows)
@@ -62,27 +62,30 @@ if harness.supports_mcp_server(&server) {
 
 ## Supported Harnesses
 
-| Harness | Skills | Commands | MCP | Rules |
-|---------|--------|----------|-----|-------|
-| Claude Code | Yes | Yes | Yes | Yes |
-| OpenCode | Yes | Yes | Yes | Yes |
-| Goose | Yes | No | Yes | Yes |
-| AMP Code | Yes | Yes | Yes | Yes |
+| Harness | Skills | Commands | MCP | Rules | Agents |
+|---------|--------|----------|-----|-------|--------|
+| Claude Code | Yes | Yes | Yes | Yes | Yes |
+| OpenCode | Yes | Yes | Yes | Yes | Yes |
+| Goose | Yes | No | Yes | Yes | No |
+| AMP Code | Yes | Yes | Yes | Yes | No |
+| Copilot CLI | Yes | No | Yes | Yes | Yes |
 
 ## Directory Naming Conventions
 
 Different harnesses use different directory names. Use `HarnessKind::directory_names()` to query programmatically:
 
-| Resource | OpenCode | Claude Code | Goose | AMP Code |
-|----------|----------|-------------|-------|----------|
-| Skills   | `skill/` | `skills/`   | `skills/` | `skills/` |
-| Commands | `command/`| `commands/` | -     | `commands/` |
-| Agents   | `agent/` | `agents/`   | -     | -        |
-| Plugins  | `plugin/`| `plugins/`  | -     | -        |
+| Resource | OpenCode | Claude Code | Goose | AMP Code | Copilot CLI |
+|----------|----------|-------------|-------|----------|-------------|
+| Skills   | `skill/` | `skills/`   | `skills/` | `skills/` | `skills/` |
+| Commands | `command/`| `commands/` | -     | `commands/` | - |
+| Agents   | `agent/` | `agents/`   | -     | -        | `agents/` |
+| Plugins  | `plugin/`| `plugins/`  | -     | -        | - |
 
 **Note:** Rules are stored at the root level, not in a named subdirectory.
 
 **Note:** OpenCode uses singular names; all others use plural.
+
+**Note:** Copilot CLI uses `.github/` for project-scoped skills, agents, and rules.
 
 ## Resource Types
 

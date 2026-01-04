@@ -175,6 +175,11 @@ impl AgentCapabilities {
                 color_format: ColorFormat::NamedOrHex,
                 supported_modes: &["subagent", "primary"],
             }),
+            HarnessKind::CopilotCli => Some(Self {
+                tools_format: ToolsFormat::CommaSeparatedString,
+                color_format: ColorFormat::NamedOrHex,
+                supported_modes: &["subagent", "primary"],
+            }),
             HarnessKind::Goose => None,
         }
     }
@@ -213,6 +218,13 @@ impl SkillCapabilities {
                 name_format: NameFormat::Any,
                 name_must_match_directory: false,
                 description_required: false,
+            }),
+            // Copilot CLI follows agentskills.io spec: lowercase hyphenated names,
+            // name must match directory, description required
+            HarnessKind::CopilotCli => Some(Self {
+                name_format: NameFormat::LowercaseHyphenated,
+                name_must_match_directory: true,
+                description_required: true,
             }),
             HarnessKind::Goose => None,
         }

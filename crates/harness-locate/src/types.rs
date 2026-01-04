@@ -25,6 +25,8 @@ pub enum HarnessKind {
     Goose,
     /// AMP Code (Sourcegraph's AI coding assistant)
     AmpCode,
+    /// GitHub Copilot CLI (@github/copilot npm package)
+    CopilotCli,
 }
 
 impl fmt::Display for HarnessKind {
@@ -34,6 +36,7 @@ impl fmt::Display for HarnessKind {
             Self::OpenCode => write!(f, "OpenCode"),
             Self::Goose => write!(f, "Goose"),
             Self::AmpCode => write!(f, "AMP Code"),
+            Self::CopilotCli => write!(f, "Copilot CLI"),
         }
     }
 }
@@ -47,6 +50,7 @@ impl HarnessKind {
             Self::OpenCode => "OpenCode",
             Self::Goose => "Goose",
             Self::AmpCode => "AMP Code",
+            Self::CopilotCli => "Copilot CLI",
         }
     }
 
@@ -64,8 +68,13 @@ impl HarnessKind {
     ///     println!("{}", kind);
     /// }
     /// ```
-    pub const ALL: &'static [Self] =
-        &[Self::ClaudeCode, Self::OpenCode, Self::Goose, Self::AmpCode];
+    pub const ALL: &'static [Self] = &[
+        Self::ClaudeCode,
+        Self::OpenCode,
+        Self::Goose,
+        Self::AmpCode,
+        Self::CopilotCli,
+    ];
 
     /// Returns the known CLI binary names for this harness.
     ///
@@ -88,6 +97,7 @@ impl HarnessKind {
             Self::OpenCode => &["opencode"],
             Self::Goose => &["goose"],
             Self::AmpCode => &["amp"],
+            Self::CopilotCli => &["copilot"],
         }
     }
 
@@ -144,6 +154,10 @@ impl HarnessKind {
             // AmpCode - plural names, limited support
             (Self::AmpCode, ResourceKind::Skills) => Some(&["skills"]),
             (Self::AmpCode, ResourceKind::Commands) => Some(&["commands"]),
+
+            // Copilot CLI - plural names, skills and agents only
+            (Self::CopilotCli, ResourceKind::Skills) => Some(&["skills"]),
+            (Self::CopilotCli, ResourceKind::Agents) => Some(&["agents"]),
 
             // Unsupported combinations
             _ => None,
@@ -504,7 +518,9 @@ impl EnvValue {
         match self {
             Self::Plain(s) => s.clone(),
             Self::EnvRef { env } => match kind {
-                HarnessKind::ClaudeCode | HarnessKind::AmpCode => format!("${{{env}}}"),
+                HarnessKind::ClaudeCode | HarnessKind::AmpCode | HarnessKind::CopilotCli => {
+                    format!("${{{env}}}")
+                }
                 HarnessKind::OpenCode => format!("{{env:{env}}}"),
                 HarnessKind::Goose => std::env::var(env).unwrap_or_default(),
             },
@@ -545,7 +561,9 @@ impl EnvValue {
         match self {
             Self::Plain(s) => Ok(s.clone()),
             Self::EnvRef { env } => match kind {
-                HarnessKind::ClaudeCode | HarnessKind::AmpCode => Ok(format!("${{{env}}}")),
+                HarnessKind::ClaudeCode | HarnessKind::AmpCode | HarnessKind::CopilotCli => {
+                    Ok(format!("${{{env}}}"))
+                }
                 HarnessKind::OpenCode => Ok(format!("{{env:{env}}}")),
                 HarnessKind::Goose => std::env::var(env)
                     .map_err(|_| crate::Error::MissingEnvVar { name: env.clone() }),
@@ -584,7 +602,7 @@ impl EnvValue {
     #[must_use]
     pub fn from_native(s: &str, kind: HarnessKind) -> Self {
         match kind {
-            HarnessKind::ClaudeCode | HarnessKind::AmpCode => {
+            HarnessKind::ClaudeCode | HarnessKind::AmpCode | HarnessKind::CopilotCli => {
                 if let Some(var) = s.strip_prefix("${").and_then(|s| s.strip_suffix('}')) {
                     Self::EnvRef {
                         env: var.to_string(),
