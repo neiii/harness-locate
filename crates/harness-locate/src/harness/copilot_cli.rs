@@ -226,7 +226,7 @@ pub(crate) fn parse_mcp_server(value: &serde_json::Value) -> Result<McpServer> {
                     timeout_ms: obj.get("timeout").and_then(|v| v.as_u64()),
                 }))
             }
-            "stdio" => parse_stdio_server(obj),
+            "stdio" | "local" => parse_stdio_server(obj),
             _ => Err(Error::UnsupportedMcpConfig {
                 harness: "Copilot CLI".to_string(),
                 reason: format!("Unknown server type: {}", server_type),
@@ -476,6 +476,58 @@ mod tests {
 
         if let McpServer::Stdio(server) = result.unwrap() {
             assert_eq!(server.timeout_ms, Some(30000));
+        } else {
+            panic!("Expected Stdio variant");
+        }
+    }
+
+    #[test]
+    fn parse_local_server_basic() {
+        // Test that "local" type is recognized as stdio server
+        let json_val = json!({
+            "type": "local",
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem"]
+        });
+
+        let result = parse_mcp_server(&json_val);
+        assert!(result.is_ok());
+
+        if let McpServer::Stdio(server) = result.unwrap() {
+            assert_eq!(server.command, "npx");
+            assert_eq!(server.args.len(), 2);
+            assert_eq!(server.args[0], "-y");
+            assert_eq!(server.args[1], "@modelcontextprotocol/server-filesystem");
+            assert!(server.env.is_empty());
+            assert!(server.enabled);
+        } else {
+            panic!("Expected Stdio variant");
+        }
+    }
+
+    #[test]
+    fn parse_local_server_with_env() {
+        let json_val = json!({
+            "type": "local",
+            "command": "node",
+            "args": ["server.js"],
+            "env": {
+                "API_KEY": "${MY_API_KEY}",
+                "DEBUG": "true"
+            }
+        });
+
+        let result = parse_mcp_server(&json_val);
+        assert!(result.is_ok());
+
+        if let McpServer::Stdio(server) = result.unwrap() {
+            assert_eq!(server.command, "node");
+            assert_eq!(server.env.len(), 2);
+            assert_eq!(
+                server.env.get("API_KEY"),
+                Some(&EnvValue::env("MY_API_KEY"))
+            );
+            assert_eq!(server.env.get("DEBUG"), Some(&EnvValue::plain("true")));
         } else {
             panic!("Expected Stdio variant");
         }
