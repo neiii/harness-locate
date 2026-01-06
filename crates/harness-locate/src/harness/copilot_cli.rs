@@ -2,7 +2,7 @@
 //!
 //! GitHub Copilot CLI (`@github/copilot` npm package) stores its configuration in:
 //! - **Global**: `$XDG_CONFIG_HOME/.copilot` or `~/.copilot/`
-//! - **Project config**: `.copilot/` in project root
+//! - **Project config**: `.github/` in project root
 //! - **Project skills/agents/rules**: `.github/` in project root
 
 use std::collections::HashMap;
@@ -45,7 +45,7 @@ pub fn global_config_dir() -> Result<PathBuf> {
 /// * `project_root` - Path to the project root directory
 #[must_use]
 pub fn project_config_dir(project_root: &std::path::Path) -> PathBuf {
-    project_root.join(".copilot")
+    project_root.join(".github")
 }
 
 /// Returns the config directory for the given scope.
@@ -70,12 +70,12 @@ pub fn mcp_dir(scope: &Scope) -> Result<PathBuf> {
 ///
 /// Copilot CLI stores skills following the agentskills.io spec:
 /// - **Global**: `~/.copilot/skills/`
-/// - **Project**: `.github/skills/` (NOT `.copilot/skills/`)
+/// - **Project**: `.github/skills/`
 #[must_use]
 pub fn skills_dir(scope: &Scope) -> Option<PathBuf> {
     match scope {
         Scope::Global => global_config_dir().ok().map(|p| p.join("skills")),
-        Scope::Project(root) => Some(root.join(".github").join("skills")),
+        Scope::Project(root) => Some(project_config_dir(root).join("skills")),
         Scope::Custom(path) => Some(path.join("skills")),
     }
 }
@@ -89,7 +89,7 @@ pub fn skills_dir(scope: &Scope) -> Option<PathBuf> {
 pub fn agents_dir(scope: &Scope) -> Option<PathBuf> {
     match scope {
         Scope::Global => global_config_dir().ok().map(|p| p.join("agents")),
-        Scope::Project(root) => Some(root.join(".github").join("agents")),
+        Scope::Project(root) => Some(project_config_dir(root).join("agents")),
         Scope::Custom(path) => Some(path.join("agents")),
     }
 }
@@ -98,20 +98,32 @@ pub fn agents_dir(scope: &Scope) -> Option<PathBuf> {
 ///
 /// Copilot CLI stores rules files (`copilot-instructions.md`) at:
 /// - **Global**: `~/.copilot/`
-/// - **Project**: `.github/` (NOT `.copilot/`)
+/// - **Project**: `.github/`
 #[must_use]
 pub fn rules_dir(scope: &Scope) -> Option<PathBuf> {
     match scope {
         Scope::Global => global_config_dir().ok(),
-        Scope::Project(root) => Some(root.join(".github")),
+        Scope::Project(root) => Some(project_config_dir(root)),
         Scope::Custom(path) => Some(path.clone()),
     }
 }
 
 /// Checks if Copilot CLI is installed on this system.
 ///
-/// Currently checks if the global config directory exists.
+/// Checks for the `copilot` binary or the existence of `~/.copilot/`.
 pub fn is_installed() -> bool {
+    // Check for copilot binary
+    let copilot_exists = std::process::Command::new("copilot")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false);
+
+    if copilot_exists {
+        return true;
+    }
+
+    // Fallback to checking for ~/.copilot directory
     global_config_dir().map(|p| p.exists()).unwrap_or(false)
 }
 
@@ -328,14 +340,14 @@ mod tests {
         assert!(result.is_ok());
         let path = result.unwrap();
         assert!(path.is_absolute());
-        assert!(path.ends_with(".copilot"));
+        assert!(path.ends_with(std::path::Path::new(".copilot")));
     }
 
     #[test]
     fn project_config_dir_is_relative_to_root() {
         let root = PathBuf::from("/some/project");
         let config = project_config_dir(&root);
-        assert_eq!(config, PathBuf::from("/some/project/.copilot"));
+        assert_eq!(config, PathBuf::from("/some/project/.github"));
     }
 
     #[test]
@@ -356,7 +368,6 @@ mod tests {
         let result = skills_dir(&Scope::Project(root));
         assert!(result.is_some());
         let path = result.unwrap();
-        // Project skills are in .github/skills, NOT .copilot/skills
         assert_eq!(path, PathBuf::from("/some/project/.github/skills"));
     }
 
@@ -378,7 +389,6 @@ mod tests {
         let result = agents_dir(&Scope::Project(root));
         assert!(result.is_some());
         let path = result.unwrap();
-        // Project agents are in .github/agents, NOT .copilot/agents
         assert_eq!(path, PathBuf::from("/some/project/.github/agents"));
     }
 
@@ -391,7 +401,7 @@ mod tests {
         let result = rules_dir(&Scope::Global);
         assert!(result.is_some());
         let path = result.unwrap();
-        assert!(path.ends_with(".copilot"));
+        assert!(path.ends_with(std::path::Path::new(".copilot")));
     }
 
     #[test]
@@ -400,7 +410,6 @@ mod tests {
         let result = rules_dir(&Scope::Project(root));
         assert!(result.is_some());
         let path = result.unwrap();
-        // Project rules are in .github/, NOT .copilot/
         assert_eq!(path, PathBuf::from("/some/project/.github"));
     }
 
