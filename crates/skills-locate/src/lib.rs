@@ -11,11 +11,11 @@ mod registry;
 mod types;
 
 pub use component::{
-    AgentDescriptor, CommandDescriptor, HooksConfig, McpServer, detect_npm_mcp,
+    AgentDescriptor, CommandDescriptor, HooksConfig, ManifestConfig, McpServer, detect_npm_mcp,
     detect_python_mcp, parse_agent_descriptor, parse_command_descriptor, parse_manifest,
-    parse_mcp_json, parse_skill_descriptor, ManifestConfig,
+    parse_mcp_json, parse_skill_descriptor,
 };
-pub use detect::{detect_mcp_from_files, DetectedMcp, DetectionConfidence, DetectionSource};
+pub use detect::{DetectedMcp, DetectionConfidence, DetectionSource, detect_mcp_from_files};
 pub use discovery::{discover_all, discover_from_source, discover_plugins};
 pub use error::{Error, Result};
 pub use fetch::{extract_file, fetch_bytes, fetch_json, list_files};

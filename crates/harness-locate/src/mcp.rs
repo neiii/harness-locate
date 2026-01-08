@@ -8,8 +8,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::types::{EnvValue, HarnessKind};
 use crate::Error;
+use crate::types::{EnvValue, HarnessKind};
 
 /// Returns `true` for serde default.
 fn default_true() -> bool {
@@ -1031,9 +1031,11 @@ mod tests {
             timeout_ms: None,
         });
 
-        assert!(server
-            .validate_capabilities(HarnessKind::ClaudeCode)
-            .is_ok());
+        assert!(
+            server
+                .validate_capabilities(HarnessKind::ClaudeCode)
+                .is_ok()
+        );
         assert!(server.validate_capabilities(HarnessKind::OpenCode).is_ok());
         assert!(server.validate_capabilities(HarnessKind::Goose).is_ok());
         assert!(server.validate_capabilities(HarnessKind::AmpCode).is_ok());
@@ -1048,9 +1050,11 @@ mod tests {
             timeout_ms: None,
         });
 
-        assert!(server
-            .validate_capabilities(HarnessKind::ClaudeCode)
-            .is_ok());
+        assert!(
+            server
+                .validate_capabilities(HarnessKind::ClaudeCode)
+                .is_ok()
+        );
         assert!(server.validate_capabilities(HarnessKind::OpenCode).is_ok());
         assert!(server.validate_capabilities(HarnessKind::Goose).is_err());
         assert!(server.validate_capabilities(HarnessKind::AmpCode).is_err());
@@ -1066,9 +1070,11 @@ mod tests {
             timeout_ms: None,
         });
 
-        assert!(server
-            .validate_capabilities(HarnessKind::ClaudeCode)
-            .is_ok());
+        assert!(
+            server
+                .validate_capabilities(HarnessKind::ClaudeCode)
+                .is_ok()
+        );
         assert!(server.validate_capabilities(HarnessKind::OpenCode).is_ok());
         assert!(server.validate_capabilities(HarnessKind::Goose).is_ok());
         assert!(server.validate_capabilities(HarnessKind::AmpCode).is_err());

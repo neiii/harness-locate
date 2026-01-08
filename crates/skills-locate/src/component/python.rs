@@ -34,7 +34,9 @@ pub fn detect_python_mcp(content: &str) -> HashMap<String, McpServer> {
 
     // Check [project.optional-dependencies.*] arrays
     if let Some(project) = doc.get("project").and_then(|v| v.as_table())
-        && let Some(opt_deps) = project.get("optional-dependencies").and_then(|v| v.as_table())
+        && let Some(opt_deps) = project
+            .get("optional-dependencies")
+            .and_then(|v| v.as_table())
     {
         for (_group, deps) in opt_deps {
             if let Some(deps_array) = deps.as_array() {

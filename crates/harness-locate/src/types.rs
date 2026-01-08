@@ -539,7 +539,7 @@ impl EnvValue {
     ///
     /// # Errors
     ///
-    /// Returns [`Error::MissingEnvVar`] if the harness is Goose and the
+    /// Returns [`crate::Error::MissingEnvVar`] if the harness is Goose and the
     /// referenced environment variable is not set.
     ///
     /// # Examples
@@ -890,19 +890,25 @@ mod tests {
     #[test]
     fn installation_status_is_runnable() {
         assert!(!InstallationStatus::NotInstalled.is_runnable());
-        assert!(!InstallationStatus::ConfigOnly {
-            config_path: PathBuf::from("/config"),
-        }
-        .is_runnable());
-        assert!(InstallationStatus::BinaryOnly {
-            binary_path: PathBuf::from("/bin"),
-        }
-        .is_runnable());
-        assert!(InstallationStatus::FullyInstalled {
-            binary_path: PathBuf::from("/bin"),
-            config_path: PathBuf::from("/config"),
-        }
-        .is_runnable());
+        assert!(
+            !InstallationStatus::ConfigOnly {
+                config_path: PathBuf::from("/config"),
+            }
+            .is_runnable()
+        );
+        assert!(
+            InstallationStatus::BinaryOnly {
+                binary_path: PathBuf::from("/bin"),
+            }
+            .is_runnable()
+        );
+        assert!(
+            InstallationStatus::FullyInstalled {
+                binary_path: PathBuf::from("/bin"),
+                config_path: PathBuf::from("/config"),
+            }
+            .is_runnable()
+        );
     }
 
     #[test]

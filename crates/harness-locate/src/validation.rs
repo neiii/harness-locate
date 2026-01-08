@@ -561,7 +561,10 @@ pub fn validate_skill_for_harness(
         if description.len() > SKILL_DESCRIPTION_MAX_LEN {
             issues.push(ValidationIssue::error(
                 "description",
-                format!("description exceeds {} characters", SKILL_DESCRIPTION_MAX_LEN),
+                format!(
+                    "description exceeds {} characters",
+                    SKILL_DESCRIPTION_MAX_LEN
+                ),
                 Some(CODE_SKILL_DESCRIPTION_LENGTH),
             ));
         }
@@ -1202,14 +1205,22 @@ mod tests {
     fn opencode_rejects_uppercase_skill_name() {
         let content = "---\nname: Hook Development\ndescription: test\n---\nSkill content";
         let issues = validate_skill_for_harness(content, "hook-development", HarnessKind::OpenCode);
-        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_NAME_FORMAT)));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == Some(CODE_SKILL_NAME_FORMAT))
+        );
     }
 
     #[test]
     fn opencode_rejects_name_directory_mismatch() {
         let content = "---\nname: other-name\ndescription: test\n---\nSkill content";
         let issues = validate_skill_for_harness(content, "actual-directory", HarnessKind::OpenCode);
-        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_NAME_DIRECTORY_MISMATCH)));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == Some(CODE_SKILL_NAME_DIRECTORY_MISMATCH))
+        );
     }
 
     #[test]
@@ -1222,7 +1233,8 @@ mod tests {
     #[test]
     fn claude_code_accepts_any_skill_name() {
         let content = "---\nname: Hook Development\ndescription: test\n---\nSkill content";
-        let issues = validate_skill_for_harness(content, "Hook Development", HarnessKind::ClaudeCode);
+        let issues =
+            validate_skill_for_harness(content, "Hook Development", HarnessKind::ClaudeCode);
         assert!(issues.is_empty());
     }
 
@@ -1230,24 +1242,42 @@ mod tests {
     fn opencode_warns_missing_description() {
         let content = "---\nname: my-skill\n---\nSkill content";
         let issues = validate_skill_for_harness(content, "my-skill", HarnessKind::OpenCode);
-        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_DESCRIPTION_MISSING)));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == Some(CODE_SKILL_DESCRIPTION_MISSING))
+        );
         assert!(issues.iter().all(|i| i.severity == Severity::Warning));
     }
 
     #[test]
     fn opencode_rejects_long_skill_name() {
         let long_name = "a".repeat(65);
-        let content = format!("---\nname: {}\ndescription: test\n---\nSkill content", long_name);
+        let content = format!(
+            "---\nname: {}\ndescription: test\n---\nSkill content",
+            long_name
+        );
         let issues = validate_skill_for_harness(&content, &long_name, HarnessKind::OpenCode);
-        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_NAME_LENGTH)));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == Some(CODE_SKILL_NAME_LENGTH))
+        );
     }
 
     #[test]
     fn opencode_rejects_long_description() {
         let long_desc = "a".repeat(1025);
-        let content = format!("---\nname: my-skill\ndescription: {}\n---\nSkill content", long_desc);
+        let content = format!(
+            "---\nname: my-skill\ndescription: {}\n---\nSkill content",
+            long_desc
+        );
         let issues = validate_skill_for_harness(&content, "my-skill", HarnessKind::OpenCode);
-        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_DESCRIPTION_LENGTH)));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == Some(CODE_SKILL_DESCRIPTION_LENGTH))
+        );
     }
 
     #[test]
@@ -1283,13 +1313,21 @@ mod tests {
     fn goose_returns_skill_unsupported() {
         let content = "---\nname: test\n---\nSkill content";
         let issues = validate_skill_for_harness(content, "test", HarnessKind::Goose);
-        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_UNSUPPORTED)));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == Some(CODE_SKILL_UNSUPPORTED))
+        );
     }
 
     #[test]
     fn skill_invalid_yaml_returns_parse_error() {
         let content = "---\nname: [unclosed\n---\nSkill content";
         let issues = validate_skill_for_harness(content, "test", HarnessKind::OpenCode);
-        assert!(issues.iter().any(|i| i.code == Some(CODE_SKILL_PARSE_ERROR)));
+        assert!(
+            issues
+                .iter()
+                .any(|i| i.code == Some(CODE_SKILL_PARSE_ERROR))
+        );
     }
 }
