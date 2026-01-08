@@ -12,6 +12,7 @@ use crate::types::{
 
 pub mod amp_code;
 pub mod claude_code;
+pub mod crush;
 pub mod goose;
 pub mod opencode;
 
@@ -49,6 +50,7 @@ impl Harness {
             HarnessKind::OpenCode => opencode::is_installed(),
             HarnessKind::Goose => goose::is_installed(),
             HarnessKind::AmpCode => amp_code::is_installed(),
+            HarnessKind::Crush => crush::is_installed(),
         };
 
         if is_installed {
@@ -125,6 +127,7 @@ impl Harness {
             HarnessKind::OpenCode => opencode::is_installed(),
             HarnessKind::Goose => goose::is_installed(),
             HarnessKind::AmpCode => amp_code::is_installed(),
+            HarnessKind::Crush => crush::is_installed(),
         }
     }
 
@@ -143,6 +146,7 @@ impl Harness {
             HarnessKind::OpenCode => opencode::global_config_dir().ok(),
             HarnessKind::Goose => goose::global_config_dir().ok(),
             HarnessKind::AmpCode => amp_code::global_config_dir().ok(),
+            HarnessKind::Crush => crush::global_config_dir().ok(),
         }
         .filter(|p| p.exists());
 
@@ -272,6 +276,19 @@ impl Harness {
                     file_format: FileFormat::Markdown,
                 }))
             }
+            HarnessKind::Crush => {
+                let path = crush::skills_dir(scope)
+                    .ok_or_else(|| Error::NotFound("skills directory".into()))?;
+                Ok(Some(DirectoryResource {
+                    exists: path.exists(),
+                    path,
+                    structure: DirectoryStructure::Nested {
+                        subdir_pattern: "*".into(),
+                        file_name: "SKILL.md".into(),
+                    },
+                    file_format: FileFormat::Markdown,
+                }))
+            }
         }
     }
 
@@ -296,7 +313,7 @@ impl Harness {
         let path = match self.kind {
             HarnessKind::ClaudeCode => claude_code::commands_dir(scope)?,
             HarnessKind::OpenCode => opencode::commands_dir(scope)?,
-            HarnessKind::Goose => return Ok(None),
+            HarnessKind::Goose | HarnessKind::Crush => return Ok(None),
             HarnessKind::AmpCode => amp_code::commands_dir(scope)?,
         };
         Ok(Some(DirectoryResource {
@@ -357,7 +374,7 @@ impl Harness {
                     file_format: FileFormat::Json,
                 }))
             }
-            HarnessKind::Goose | HarnessKind::AmpCode => Ok(None),
+            HarnessKind::Goose | HarnessKind::AmpCode | HarnessKind::Crush => Ok(None),
         }
     }
 
@@ -408,7 +425,7 @@ impl Harness {
                     file_format: FileFormat::Yaml,
                 }))
             }
-            HarnessKind::Goose | HarnessKind::AmpCode => Ok(None),
+            HarnessKind::Goose | HarnessKind::AmpCode | HarnessKind::Crush => Ok(None),
         }
     }
 
@@ -439,6 +456,7 @@ impl Harness {
             HarnessKind::OpenCode => opencode::config_dir(scope),
             HarnessKind::Goose => goose::config_dir(scope),
             HarnessKind::AmpCode => amp_code::config_dir(scope),
+            HarnessKind::Crush => crush::config_dir(scope),
         }
     }
 
@@ -493,6 +511,10 @@ impl Harness {
                     "/amp.mcpServers".into(),
                     FileFormat::Json,
                 )
+            }
+            HarnessKind::Crush => {
+                let base = crush::config_dir(scope)?;
+                (base.join("crush.json"), "/mcp".into(), FileFormat::Json)
             }
         };
         Ok(Some(ConfigResource {
@@ -656,6 +678,7 @@ impl Harness {
             HarnessKind::OpenCode => opencode::rules_dir(scope),
             HarnessKind::Goose => goose::rules_dir(scope),
             HarnessKind::AmpCode => amp_code::rules_dir(scope),
+            HarnessKind::Crush => crush::rules_dir(scope),
         };
         match path {
             Some(p) => Ok(Some(DirectoryResource {
@@ -747,6 +770,7 @@ impl Harness {
             HarnessKind::OpenCode => opencode::parse_mcp_servers(config)?,
             HarnessKind::Goose => goose::parse_mcp_servers(config)?,
             HarnessKind::AmpCode => claude_code::parse_mcp_servers(config)?,
+            HarnessKind::Crush => crush::parse_mcp_servers(config)?,
         };
         Ok(servers.into_iter().collect())
     }
@@ -783,6 +807,7 @@ impl Harness {
             HarnessKind::OpenCode => opencode::parse_mcp_server(value),
             HarnessKind::Goose => goose::parse_mcp_server(value),
             HarnessKind::AmpCode => claude_code::parse_mcp_server(value),
+            HarnessKind::Crush => crush::parse_mcp_server(value),
         };
 
         result.map_err(|e| match e {
@@ -1084,7 +1109,7 @@ mod tests {
 
     #[test]
     fn harness_kind_all_contains_all_variants() {
-        assert_eq!(HarnessKind::ALL.len(), 4);
+        assert_eq!(HarnessKind::ALL.len(), 5);
         assert!(HarnessKind::ALL.contains(&HarnessKind::ClaudeCode));
         assert!(HarnessKind::ALL.contains(&HarnessKind::OpenCode));
         assert!(HarnessKind::ALL.contains(&HarnessKind::Goose));
