@@ -60,6 +60,29 @@ if harness.supports_mcp_server(&server) {
 }
 ```
 
+### MCP Tool Selection
+
+Preserve tool allowlists across different harnesses:
+
+```rust
+use harness_locate::mcp::{McpServerConfig, McpServer, McpToolSelection, StdioMcpServer};
+
+let server = McpServer::Stdio(StdioMcpServer {
+    command: "npx".to_string(),
+    args: vec!["-y".to_string(), "server".to_string()],
+    env: Default::default(),
+    cwd: None,
+    enabled: true,
+    timeout_ms: None,
+});
+
+// Allow only specific tools
+let config = McpServerConfig {
+    server,
+    tool_selection: McpToolSelection::Only(vec!["read_file".to_string(), "write_file".to_string()]),
+};
+```
+
 ## Supported Harnesses
 
 | Harness | Skills | Commands | MCP | Rules | Agents |
