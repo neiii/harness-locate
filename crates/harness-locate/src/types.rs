@@ -565,6 +565,22 @@ impl EnvValue {
         }
     }
 
+    /// Converts to Crush's native shell-style environment variable format.
+    ///
+    /// Crush uses `$VAR` or `${VAR}` syntax for environment variables.
+    ///
+    /// # Returns
+    ///
+    /// - For `Plain`: Returns the string as-is
+    /// - For `EnvRef`: Returns `${VAR}` format
+    #[must_use]
+    pub fn to_crush_native(&self) -> String {
+        match self {
+            Self::Plain(s) => s.clone(),
+            Self::EnvRef { env } => format!("${{{env}}}"),
+        }
+    }
+
     /// Parses a harness-specific native string format into an `EnvValue`.
     ///
     /// # Arguments

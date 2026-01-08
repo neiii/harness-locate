@@ -50,7 +50,7 @@ impl Harness {
             HarnessKind::OpenCode => opencode::is_installed(),
             HarnessKind::Goose => goose::is_installed(),
             HarnessKind::AmpCode => amp_code::is_installed(),
-            HarnessKind::Crush => crush::is_installed(),
+            HarnessKind::Crush => crush::is_installed()?,
         };
 
         if is_installed {
@@ -127,7 +127,7 @@ impl Harness {
             HarnessKind::OpenCode => opencode::is_installed(),
             HarnessKind::Goose => goose::is_installed(),
             HarnessKind::AmpCode => amp_code::is_installed(),
-            HarnessKind::Crush => crush::is_installed(),
+            HarnessKind::Crush => crush::is_installed().unwrap_or(false),
         }
     }
 
@@ -277,8 +277,7 @@ impl Harness {
                 }))
             }
             HarnessKind::Crush => {
-                let path = crush::skills_dir(scope)
-                    .ok_or_else(|| Error::NotFound("skills directory".into()))?;
+                let path = crush::skills_dir(scope)?;
                 Ok(Some(DirectoryResource {
                     exists: path.exists(),
                     path,
@@ -673,12 +672,12 @@ impl Harness {
     /// # Ok::<(), harness_locate::Error>(())
     /// ```
     pub fn rules(&self, scope: &Scope) -> Result<Option<DirectoryResource>> {
-        let path = match self.kind {
+        let path: Option<PathBuf> = match self.kind {
             HarnessKind::ClaudeCode => claude_code::rules_dir(scope),
             HarnessKind::OpenCode => opencode::rules_dir(scope),
             HarnessKind::Goose => goose::rules_dir(scope),
             HarnessKind::AmpCode => amp_code::rules_dir(scope),
-            HarnessKind::Crush => crush::rules_dir(scope),
+            HarnessKind::Crush => Some(crush::rules_dir(scope)?),
         };
         match path {
             Some(p) => Ok(Some(DirectoryResource {
@@ -769,7 +768,7 @@ impl Harness {
             HarnessKind::ClaudeCode => claude_code::parse_mcp_servers(config)?,
             HarnessKind::OpenCode => opencode::parse_mcp_servers(config)?,
             HarnessKind::Goose => goose::parse_mcp_servers(config)?,
-            HarnessKind::AmpCode => claude_code::parse_mcp_servers(config)?,
+            HarnessKind::AmpCode => amp_code::parse_mcp_servers(config)?,
             HarnessKind::Crush => crush::parse_mcp_servers(config)?,
         };
         Ok(servers.into_iter().collect())
@@ -806,7 +805,7 @@ impl Harness {
             HarnessKind::ClaudeCode => claude_code::parse_mcp_server(value),
             HarnessKind::OpenCode => opencode::parse_mcp_server(value),
             HarnessKind::Goose => goose::parse_mcp_server(value),
-            HarnessKind::AmpCode => claude_code::parse_mcp_server(value),
+            HarnessKind::AmpCode => amp_code::parse_mcp_server(name, value),
             HarnessKind::Crush => crush::parse_mcp_server(value),
         };
 

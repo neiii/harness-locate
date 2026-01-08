@@ -1,7 +1,7 @@
 //! Crush harness implementation.
 //!
 //! Crush (Charmbracelet's AI coding assistant) stores its configuration in:
-//! - **Global**: `~/.config/crush/`
+//! - **Global**: Platform config directory + `crush/` (e.g., `~/.config/crush/` on Linux/macOS)
 //! - **Project**: `.crush/` in project root (if exists)
 
 use std::collections::HashMap;
@@ -12,13 +12,58 @@ use crate::mcp::{HttpMcpServer, McpServer, SseMcpServer, StdioMcpServer};
 use crate::platform;
 use crate::types::{EnvValue, Scope};
 
+/// Parses a string value that may contain Crush's shell-style environment variable syntax.
+///
+/// Crush supports:
+/// - `$VAR` - simple variable reference
+/// - `${VAR}` - braced variable reference
+///
+/// Note: Crush also supports `$(command)` for shell command substitution, but we don't
+/// parse that here as it requires runtime execution.
+fn parse_crush_env_value(s: &str) -> EnvValue {
+    let trimmed = s.trim();
+
+    if let Some(var) = trimmed.strip_prefix("${").and_then(|s| s.strip_suffix('}'))
+        && is_valid_env_var_name(var)
+    {
+        return EnvValue::EnvRef {
+            env: var.to_string(),
+        };
+    }
+
+    if let Some(var) = trimmed.strip_prefix('$')
+        && is_valid_env_var_name(var)
+        && !var.contains('(')
+    {
+        return EnvValue::EnvRef {
+            env: var.to_string(),
+        };
+    }
+
+    EnvValue::Plain(s.to_string())
+}
+
+/// Checks if a string is a valid environment variable name.
+/// Must start with letter or underscore, followed by letters, numbers, or underscores.
+fn is_valid_env_var_name(s: &str) -> bool {
+    let mut chars = s.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphabetic() || c == '_' => {
+            chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
+        }
+        _ => false,
+    }
+}
+
 /// Returns the global Crush configuration directory.
 ///
-/// Returns `~/.config/crush/` on all platforms.
+/// Returns the platform-specific config directory joined with `crush/`:
+/// - Linux/macOS: `~/.config/crush/`
+/// - Windows: `%APPDATA%\crush\`
 ///
 /// # Errors
 ///
-/// Returns an error if the home directory cannot be determined.
+/// Returns an error if the config directory cannot be determined.
 pub fn global_config_dir() -> Result<PathBuf> {
     Ok(platform::config_dir()?.join("crush"))
 }
@@ -62,41 +107,49 @@ pub fn mcp_dir(scope: &Scope) -> Result<PathBuf> {
 /// Returns the skills directory path for Crush.
 ///
 /// Crush stores skills in:
-/// - Global: `~/.config/crush/skills/`
+/// - Global: `<config_dir>/crush/skills/`
 /// - Project: `.crush/skills/`
 ///
 /// Skills use the same SKILL.md format with YAML frontmatter.
-#[must_use]
-pub fn skills_dir(scope: &Scope) -> Option<PathBuf> {
+///
+/// # Errors
+///
+/// Returns an error if the config directory cannot be determined (Global scope only).
+pub fn skills_dir(scope: &Scope) -> Result<PathBuf> {
     match scope {
-        Scope::Global => {
-            let config = platform::config_dir().ok()?;
-            Some(config.join("crush").join("skills"))
-        }
-        Scope::Project(root) => Some(root.join(".crush").join("skills")),
-        Scope::Custom(path) => Some(path.join("skills")),
+        Scope::Global => Ok(global_config_dir()?.join("skills")),
+        Scope::Project(root) => Ok(root.join(".crush").join("skills")),
+        Scope::Custom(path) => Ok(path.join("skills")),
     }
 }
 
 /// Returns the rules directory for the given scope.
 ///
 /// Crush stores rules files at:
-/// - **Global**: `~/.config/crush/`
+/// - **Global**: `<config_dir>/crush/`
 /// - **Project**: Project root directory
-#[must_use]
-pub fn rules_dir(scope: &Scope) -> Option<PathBuf> {
+///
+/// # Errors
+///
+/// Returns an error if the config directory cannot be determined (Global scope only).
+pub fn rules_dir(scope: &Scope) -> Result<PathBuf> {
     match scope {
-        Scope::Global => global_config_dir().ok(),
-        Scope::Project(root) => Some(root.clone()),
-        Scope::Custom(path) => Some(path.clone()),
+        Scope::Global => global_config_dir(),
+        Scope::Project(root) => Ok(root.clone()),
+        Scope::Custom(path) => Ok(path.clone()),
     }
 }
 
 /// Checks if Crush is installed on this system.
 ///
 /// Currently checks if the global config directory exists.
-pub fn is_installed() -> bool {
-    global_config_dir().map(|p| p.exists()).unwrap_or(false)
+///
+/// # Errors
+///
+/// Returns an error if the config directory cannot be determined
+/// (e.g., on unsupported platforms).
+pub fn is_installed() -> Result<bool> {
+    Ok(global_config_dir()?.exists())
 }
 
 /// Parses a single MCP server from Crush's native JSON format.
@@ -125,13 +178,24 @@ pub(crate) fn parse_mcp_server(value: &serde_json::Value) -> Result<McpServer> {
                 reason: "Missing 'type' field".into(),
             })?;
 
-    let disabled = obj
-        .get("disabled")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+    let disabled = if let Some(v) = obj.get("disabled") {
+        v.as_bool().ok_or_else(|| Error::UnsupportedMcpConfig {
+            harness: "Crush".into(),
+            reason: "'disabled' must be a boolean".into(),
+        })?
+    } else {
+        false
+    };
     let enabled = !disabled;
 
-    let timeout_ms = obj.get("timeout_ms").and_then(|v| v.as_u64());
+    let timeout_ms = if let Some(v) = obj.get("timeout_ms") {
+        Some(v.as_u64().ok_or_else(|| Error::UnsupportedMcpConfig {
+            harness: "Crush".into(),
+            reason: "'timeout_ms' must be a positive integer".into(),
+        })?)
+    } else {
+        None
+    };
 
     match server_type {
         "stdio" => {
@@ -179,7 +243,7 @@ pub(crate) fn parse_mcp_server(value: &serde_json::Value) -> Result<McpServer> {
                         harness: "Crush".into(),
                         reason: format!("env.{} must be a string", k),
                     })?;
-                    env_map.insert(k.clone(), EnvValue::plain(value_str));
+                    env_map.insert(k.clone(), parse_crush_env_value(value_str));
                 }
                 env_map
             } else {
@@ -219,7 +283,7 @@ pub(crate) fn parse_mcp_server(value: &serde_json::Value) -> Result<McpServer> {
                         harness: "Crush".into(),
                         reason: format!("headers.{} must be a string", k),
                     })?;
-                    headers_map.insert(k.clone(), EnvValue::plain(value_str));
+                    headers_map.insert(k.clone(), parse_crush_env_value(value_str));
                 }
                 headers_map
             } else {
@@ -258,7 +322,7 @@ pub(crate) fn parse_mcp_server(value: &serde_json::Value) -> Result<McpServer> {
                         harness: "Crush".into(),
                         reason: format!("headers.{} must be a string", k),
                     })?;
-                    headers_map.insert(k.clone(), EnvValue::plain(value_str));
+                    headers_map.insert(k.clone(), parse_crush_env_value(value_str));
                 }
                 headers_map
             } else {
@@ -355,7 +419,7 @@ mod tests {
         }
 
         let result = skills_dir(&Scope::Global);
-        assert!(result.is_some());
+        assert!(result.is_ok());
         let path = result.unwrap();
         assert!(path.is_absolute());
         assert!(path.ends_with("crush/skills"));
@@ -365,7 +429,7 @@ mod tests {
     fn skills_dir_project_returns_dot_crush_skills() {
         let root = PathBuf::from("/some/project");
         let result = skills_dir(&Scope::Project(root));
-        assert!(result.is_some());
+        assert!(result.is_ok());
         assert_eq!(
             result.unwrap(),
             PathBuf::from("/some/project/.crush/skills")
@@ -391,7 +455,7 @@ mod tests {
         }
 
         let result = rules_dir(&Scope::Global);
-        assert!(result.is_some());
+        assert!(result.is_ok());
         assert!(result.unwrap().ends_with("crush"));
     }
 
@@ -399,7 +463,7 @@ mod tests {
     fn rules_dir_project_returns_root() {
         let root = PathBuf::from("/some/project");
         let result = rules_dir(&Scope::Project(root.clone()));
-        assert!(result.is_some());
+        assert!(result.is_ok());
         assert_eq!(result.unwrap(), root);
     }
 
@@ -761,5 +825,115 @@ mod tests {
 
         let result = parse_mcp_server(&json);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn parse_disabled_non_boolean_fails() {
+        let json = json!({
+            "type": "stdio",
+            "command": "test",
+            "disabled": "true"
+        });
+
+        let result = parse_mcp_server(&json);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("disabled"));
+        assert!(err.contains("boolean"));
+    }
+
+    #[test]
+    fn parse_timeout_ms_non_integer_fails() {
+        let json = json!({
+            "type": "stdio",
+            "command": "test",
+            "timeout_ms": "5000"
+        });
+
+        let result = parse_mcp_server(&json);
+        assert!(result.is_err());
+        let err = result.unwrap_err().to_string();
+        assert!(err.contains("timeout_ms"));
+    }
+
+    #[test]
+    fn parse_crush_env_value_braced_var() {
+        let result = parse_crush_env_value("${API_KEY}");
+        assert_eq!(result, EnvValue::env("API_KEY"));
+    }
+
+    #[test]
+    fn parse_crush_env_value_simple_var() {
+        let result = parse_crush_env_value("$API_KEY");
+        assert_eq!(result, EnvValue::env("API_KEY"));
+    }
+
+    #[test]
+    fn parse_crush_env_value_plain_text() {
+        let result = parse_crush_env_value("plain text");
+        assert_eq!(result, EnvValue::plain("plain text"));
+    }
+
+    #[test]
+    fn parse_crush_env_value_command_substitution_not_parsed() {
+        let result = parse_crush_env_value("$(echo test)");
+        assert_eq!(result, EnvValue::plain("$(echo test)"));
+    }
+
+    #[test]
+    fn parse_crush_env_value_invalid_var_name() {
+        let result = parse_crush_env_value("$123INVALID");
+        assert_eq!(result, EnvValue::plain("$123INVALID"));
+    }
+
+    #[test]
+    fn parse_stdio_server_parses_env_var_syntax() {
+        let json = json!({
+            "type": "stdio",
+            "command": "test",
+            "env": {
+                "API_KEY": "${MY_SECRET}",
+                "PLAIN": "plain_value"
+            }
+        });
+
+        let result = parse_mcp_server(&json).unwrap();
+
+        if let McpServer::Stdio(server) = result {
+            assert_eq!(server.env.get("API_KEY"), Some(&EnvValue::env("MY_SECRET")));
+            assert_eq!(
+                server.env.get("PLAIN"),
+                Some(&EnvValue::plain("plain_value"))
+            );
+        } else {
+            panic!("Expected Stdio variant");
+        }
+    }
+
+    #[test]
+    fn parse_http_server_parses_header_env_var_syntax() {
+        let json = json!({
+            "type": "http",
+            "url": "https://example.com",
+            "headers": {
+                "Authorization": "${API_TOKEN}",
+                "X-Mixed": "Bearer $API_TOKEN"
+            }
+        });
+
+        let result = parse_mcp_server(&json).unwrap();
+
+        if let McpServer::Http(server) = result {
+            assert_eq!(
+                server.headers.get("Authorization"),
+                Some(&EnvValue::env("API_TOKEN"))
+            );
+            assert_eq!(
+                server.headers.get("X-Mixed"),
+                Some(&EnvValue::plain("Bearer $API_TOKEN"))
+            );
+        } else {
+            panic!("Expected Http variant");
+        }
     }
 }
