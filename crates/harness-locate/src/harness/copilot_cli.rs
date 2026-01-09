@@ -2,8 +2,7 @@
 //!
 //! GitHub Copilot CLI (`@github/copilot` npm package) stores its configuration in:
 //! - **Global**: `$XDG_CONFIG_HOME/.copilot` or `~/.copilot/`
-//! - **Project config**: `.github/` in project root
-//! - **Project skills/agents/rules**: `.github/` in project root
+//! - **Project**: `.github/` in project root
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -63,6 +62,7 @@ pub fn config_dir(scope: &Scope) -> Result<PathBuf> {
 ///
 /// Copilot CLI stores MCP configuration in `mcp-config.json`.
 /// Note that project-local MCP configuration is not natively supported.
+/// - **Global**: `~/.copilot/mcp-config.json`
 pub fn mcp_dir(scope: &Scope) -> Result<PathBuf> {
     match scope {
         Scope::Global => global_config_dir(),
@@ -260,10 +260,12 @@ fn parse_string_map(
 ) -> Result<HashMap<String, EnvValue>> {
     let mut map = HashMap::new();
     if let Some(value) = obj.get(field) {
-        let map_obj = value.as_object().ok_or_else(|| Error::UnsupportedMcpConfig {
-            harness: "Copilot CLI".to_string(),
-            reason: format!("'{}' must be an object", field),
-        })?;
+        let map_obj = value
+            .as_object()
+            .ok_or_else(|| Error::UnsupportedMcpConfig {
+                harness: "Copilot CLI".to_string(),
+                reason: format!("'{}' must be an object", field),
+            })?;
 
         for (key, value) in map_obj {
             let value_str = value.as_str().ok_or_else(|| Error::UnsupportedMcpConfig {
