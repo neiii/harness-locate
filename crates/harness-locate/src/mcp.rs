@@ -142,6 +142,7 @@ impl McpServer {
         match kind {
             HarnessKind::ClaudeCode => self.to_claude_code_value(kind),
             HarnessKind::OpenCode => self.to_opencode_value(kind),
+            HarnessKind::Crush => self.to_crush_value(kind),
             HarnessKind::Goose => self.to_goose_value(kind, name),
             HarnessKind::AmpCode => self.to_ampcode_value(kind),
         }
@@ -277,6 +278,75 @@ impl McpServer {
         }
     }
 
+    fn to_crush_value(&self, _kind: HarnessKind) -> Result<serde_json::Value, Error> {
+        match self {
+            Self::Stdio(s) => {
+                let mut obj = serde_json::json!({
+                    "type": "stdio",
+                    "command": s.command,
+                    "args": s.args,
+                });
+                if !s.env.is_empty() {
+                    let env: std::collections::HashMap<String, String> = s
+                        .env
+                        .iter()
+                        .map(|(k, v)| Ok((k.clone(), v.to_crush_native())))
+                        .collect::<Result<_, Error>>()?;
+                    obj["env"] = serde_json::to_value(env).unwrap();
+                }
+                if let Some(timeout_ms) = s.timeout_ms {
+                    obj["timeout_ms"] = serde_json::json!(timeout_ms);
+                }
+                if !s.enabled {
+                    obj["disabled"] = serde_json::json!(true);
+                }
+                Ok(obj)
+            }
+            Self::Sse(s) => {
+                let mut obj = serde_json::json!({
+                    "type": "sse",
+                    "url": s.url,
+                });
+                if !s.headers.is_empty() {
+                    let headers: std::collections::HashMap<String, String> = s
+                        .headers
+                        .iter()
+                        .map(|(k, v)| Ok((k.clone(), v.to_crush_native())))
+                        .collect::<Result<_, Error>>()?;
+                    obj["headers"] = serde_json::to_value(headers).unwrap();
+                }
+                if let Some(timeout_ms) = s.timeout_ms {
+                    obj["timeout_ms"] = serde_json::json!(timeout_ms);
+                }
+                if !s.enabled {
+                    obj["disabled"] = serde_json::json!(true);
+                }
+                Ok(obj)
+            }
+            Self::Http(h) => {
+                let mut obj = serde_json::json!({
+                    "type": "http",
+                    "url": h.url,
+                });
+                if !h.headers.is_empty() {
+                    let headers: std::collections::HashMap<String, String> = h
+                        .headers
+                        .iter()
+                        .map(|(k, v)| Ok((k.clone(), v.to_crush_native())))
+                        .collect::<Result<_, Error>>()?;
+                    obj["headers"] = serde_json::to_value(headers).unwrap();
+                }
+                if let Some(timeout_ms) = h.timeout_ms {
+                    obj["timeout_ms"] = serde_json::json!(timeout_ms);
+                }
+                if !h.enabled {
+                    obj["disabled"] = serde_json::json!(true);
+                }
+                Ok(obj)
+            }
+        }
+    }
+
     fn to_goose_value(&self, kind: HarnessKind, name: &str) -> Result<serde_json::Value, Error> {
         match self {
             Self::Stdio(s) => {
@@ -339,14 +409,34 @@ impl McpServer {
                 }
                 Ok(obj)
             }
-            Self::Sse(_) => Err(Error::UnsupportedMcpConfig {
-                harness: kind.to_string(),
-                reason: "SSE transport not supported".into(),
-            }),
-            Self::Http(_) => Err(Error::UnsupportedMcpConfig {
-                harness: kind.to_string(),
-                reason: "HTTP transport not supported".into(),
-            }),
+            Self::Sse(s) => {
+                let mut obj = serde_json::json!({
+                    "url": s.url,
+                });
+                if !s.headers.is_empty() {
+                    let headers: std::collections::HashMap<String, String> = s
+                        .headers
+                        .iter()
+                        .map(|(k, v)| Ok((k.clone(), v.try_to_native(kind)?)))
+                        .collect::<Result<_, Error>>()?;
+                    obj["headers"] = serde_json::to_value(headers).unwrap();
+                }
+                Ok(obj)
+            }
+            Self::Http(h) => {
+                let mut obj = serde_json::json!({
+                    "url": h.url,
+                });
+                if !h.headers.is_empty() {
+                    let headers: std::collections::HashMap<String, String> = h
+                        .headers
+                        .iter()
+                        .map(|(k, v)| Ok((k.clone(), v.try_to_native(kind)?)))
+                        .collect::<Result<_, Error>>()?;
+                    obj["headers"] = serde_json::to_value(headers).unwrap();
+                }
+                Ok(obj)
+            }
         }
     }
 }
@@ -613,14 +703,25 @@ impl McpCapabilities {
                 headers: false,
                 cwd: false,
             },
+            // Amp auto-detects SSE vs HTTP transport from server response headers
             HarnessKind::AmpCode => Self {
                 stdio: true,
-                sse: false,
-                http: false,
-                oauth: false,
+                sse: true,
+                http: true,
+                oauth: true,
                 timeout: false,
                 toggle: false,
-                headers: false,
+                headers: true,
+                cwd: false,
+            },
+            HarnessKind::Crush => Self {
+                stdio: true,
+                sse: true,
+                http: true,
+                oauth: false,
+                timeout: true,
+                toggle: true,
+                headers: true,
                 cwd: false,
             },
         }
@@ -987,11 +1088,11 @@ mod tests {
         );
         assert!(server.validate_capabilities(HarnessKind::OpenCode).is_ok());
         assert!(server.validate_capabilities(HarnessKind::Goose).is_err());
-        assert!(server.validate_capabilities(HarnessKind::AmpCode).is_err());
+        assert!(server.validate_capabilities(HarnessKind::AmpCode).is_ok());
     }
 
     #[test]
-    fn validate_capabilities_http_rejected_by_ampcode() {
+    fn validate_capabilities_http_accepted_by_ampcode() {
         let server = McpServer::Http(HttpMcpServer {
             url: "http://localhost".to_string(),
             headers: HashMap::new(),
@@ -1007,7 +1108,7 @@ mod tests {
         );
         assert!(server.validate_capabilities(HarnessKind::OpenCode).is_ok());
         assert!(server.validate_capabilities(HarnessKind::Goose).is_ok());
-        assert!(server.validate_capabilities(HarnessKind::AmpCode).is_err());
+        assert!(server.validate_capabilities(HarnessKind::AmpCode).is_ok());
     }
 
     #[test]
@@ -1086,5 +1187,102 @@ mod tests {
             .unwrap();
         assert_eq!(value["type"], "http");
         assert_eq!(value["url"], "http://localhost:8080");
+    }
+
+    #[test]
+    fn mcp_capabilities_for_ampcode() {
+        let caps = McpCapabilities::for_kind(HarnessKind::AmpCode);
+        assert!(caps.stdio);
+        assert!(caps.sse);
+        assert!(caps.http);
+        assert!(caps.oauth);
+        assert!(!caps.timeout);
+        assert!(!caps.toggle);
+        assert!(caps.headers);
+        assert!(!caps.cwd);
+    }
+
+    #[test]
+    fn to_native_value_sse_ampcode() {
+        let mut headers = HashMap::new();
+        headers.insert("Authorization".to_string(), EnvValue::plain("token xyz"));
+
+        let server = McpServer::Sse(SseMcpServer {
+            url: "https://mcp.example.com/sse".to_string(),
+            headers,
+            enabled: true,
+            timeout_ms: None,
+        });
+
+        let value = server
+            .to_native_value(HarnessKind::AmpCode, "test-server")
+            .unwrap();
+        assert_eq!(value["url"], "https://mcp.example.com/sse");
+        assert_eq!(value["headers"]["Authorization"], "token xyz");
+        assert!(value.get("type").is_none());
+    }
+
+    #[test]
+    fn to_native_value_http_ampcode() {
+        let server = McpServer::Http(HttpMcpServer {
+            url: "https://api.example.com/mcp".to_string(),
+            headers: HashMap::new(),
+            oauth: None,
+            enabled: true,
+            timeout_ms: None,
+        });
+
+        let value = server
+            .to_native_value(HarnessKind::AmpCode, "test-server")
+            .unwrap();
+        assert_eq!(value["url"], "https://api.example.com/mcp");
+        assert!(value.get("headers").is_none());
+    }
+
+    #[test]
+    fn to_native_value_http_ampcode_with_env_var() {
+        let mut headers = HashMap::new();
+        headers.insert("Authorization".to_string(), EnvValue::env("API_TOKEN"));
+
+        let server = McpServer::Http(HttpMcpServer {
+            url: "https://api.example.com/mcp".to_string(),
+            headers,
+            oauth: None,
+            enabled: true,
+            timeout_ms: None,
+        });
+
+        let value = server
+            .to_native_value(HarnessKind::AmpCode, "test-server")
+            .unwrap();
+        assert_eq!(value["headers"]["Authorization"], "${API_TOKEN}");
+    }
+
+    #[test]
+    fn to_native_value_stdio_ampcode() {
+        let mut env = HashMap::new();
+        env.insert("ROOT_DIR".to_string(), EnvValue::env("HOME"));
+
+        let server = McpServer::Stdio(StdioMcpServer {
+            command: "npx".to_string(),
+            args: vec![
+                "-y".to_string(),
+                "@modelcontextprotocol/server-filesystem".to_string(),
+            ],
+            env,
+            cwd: None,
+            enabled: true,
+            timeout_ms: None,
+        });
+
+        let value = server
+            .to_native_value(HarnessKind::AmpCode, "filesystem")
+            .unwrap();
+        assert_eq!(value["command"], "npx");
+        assert_eq!(
+            value["args"],
+            serde_json::json!(["-y", "@modelcontextprotocol/server-filesystem"])
+        );
+        assert_eq!(value["env"]["ROOT_DIR"], "${HOME}");
     }
 }

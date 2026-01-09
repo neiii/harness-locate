@@ -175,7 +175,7 @@ impl AgentCapabilities {
                 color_format: ColorFormat::NamedOrHex,
                 supported_modes: &["subagent", "primary"],
             }),
-            HarnessKind::Goose => None,
+            HarnessKind::Goose | HarnessKind::Crush => None,
         }
     }
 }
@@ -215,6 +215,11 @@ impl SkillCapabilities {
                 description_required: false,
             }),
             HarnessKind::Goose => None,
+            HarnessKind::Crush => Some(Self {
+                name_format: NameFormat::Any,
+                name_must_match_directory: false,
+                description_required: false,
+            }),
         }
     }
 }

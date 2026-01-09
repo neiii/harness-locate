@@ -8,7 +8,7 @@ Cross-platform harness path discovery for AI coding CLI tools.
 
 ## Features
 
-- Detect installed AI coding assistants (Claude Code, OpenCode, Goose, AMP Code)
+- Detect installed AI coding assistants (Claude Code, OpenCode, Goose, AMP Code, Crush)
 - Resolve configuration paths (global and project-scoped)
 - Unified MCP server configuration types
 - Cross-platform support (macOS, Linux, Windows)
@@ -68,17 +68,18 @@ if harness.supports_mcp_server(&server) {
 | OpenCode | Yes | Yes | Yes | Yes |
 | Goose | Yes | No | Yes | Yes |
 | AMP Code | Yes | Yes | Yes | Yes |
+| Crush | Yes | No | Yes | Yes |
 
 ## Directory Naming Conventions
 
 Different harnesses use different directory names. Use `HarnessKind::directory_names()` to query programmatically:
 
-| Resource | OpenCode | Claude Code | Goose | AMP Code |
-|----------|----------|-------------|-------|----------|
-| Skills   | `skill/` | `skills/`   | `skills/` | `skills/` |
-| Commands | `command/`| `commands/` | -     | `commands/` |
-| Agents   | `agent/` | `agents/`   | -     | -        |
-| Plugins  | `plugin/`| `plugins/`  | -     | -        |
+| Resource | OpenCode | Claude Code | Goose | AMP Code | Crush |
+|----------|----------|-------------|-------|----------|-------|
+| Skills   | `skill/` | `skills/`   | `skills/` | `skills/` | `skills/` |
+| Commands | `command/`| `commands/` | -     | `commands/` | - |
+| Agents   | `agent/` | `agents/`   | -     | -        | - |
+| Plugins  | `plugin/`| `plugins/`  | -     | -        | - |
 
 **Note:** Rules are stored at the root level, not in a named subdirectory.
 
