@@ -18,7 +18,7 @@ const XDG_CONFIG_HOME_ENV: &str = "XDG_CONFIG_HOME";
 
 /// Returns the global Copilot CLI configuration directory.
 ///
-/// Checks `XDG_CONFIG_HOME` environment variable first (returns `$XDG_CONFIG_HOME/.copilot`),
+/// Checks `XDG_CONFIG_HOME` environment variable first (returns `$XDG_CONFIG_HOME/copilot`),
 /// then falls back to `~/.copilot/`.
 ///
 /// # Errors
@@ -30,7 +30,7 @@ pub fn global_config_dir() -> Result<PathBuf> {
     if let Ok(xdg_config) = std::env::var(XDG_CONFIG_HOME_ENV) {
         let path = PathBuf::from(xdg_config);
         if path.is_absolute() {
-            return Ok(path.join(".copilot"));
+            return Ok(path.join("copilot"));
         }
     }
 
