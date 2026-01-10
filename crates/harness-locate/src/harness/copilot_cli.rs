@@ -1,7 +1,7 @@
 //! GitHub Copilot CLI harness implementation.
 //!
 //! GitHub Copilot CLI (`@github/copilot` npm package) stores its configuration in:
-//! - **Global**: `$XDG_CONFIG_HOME/.copilot` or `~/.copilot/`
+//! - **Global**: `$XDG_CONFIG_HOME/copilot` or `~/.copilot/`
 //! - **Project**: `.github/` in project root
 
 use std::collections::HashMap;
