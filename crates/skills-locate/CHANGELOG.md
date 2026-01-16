@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-01-16
+
+### Changed
+
+- Updated `harness-locate` dependency from 0.3.0 to 0.4.1 (adds Copilot CLI support)
+
 ## [0.2.0] - 2025-01-04
 
 ### Added
@@ -44,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - HTTP fetching and ZIP archive extraction
 - Skill, hook, command, and agent component parsing
 
-[Unreleased]: https://github.com/anthropics/harness-locate/compare/skills-locate-v0.2.0...HEAD
+[Unreleased]: https://github.com/anthropics/harness-locate/compare/skills-locate-v0.2.1...HEAD
+[0.2.1]: https://github.com/anthropics/harness-locate/compare/skills-locate-v0.2.0...skills-locate-v0.2.1
 [0.2.0]: https://github.com/anthropics/harness-locate/compare/skills-locate-v0.1.1...skills-locate-v0.2.0
 [0.1.1]: https://github.com/anthropics/harness-locate/releases/tag/skills-locate-v0.1.1
